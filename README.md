@@ -38,20 +38,27 @@ UXP plugin for Adobe InDesign that connects to Helper Harry's print shop workflo
 3. Clone or copy the plugin source folder into the plugins folder
 4. Restart InDesign → Window → Helper Harry
 
-### 2. Print PDF Preset
+### 2. Print PDF Preset(s)
 
-The `.joboptions` file in [dist/](./dist/) gives you a press-ready export preset matching the target print shop's stock and colour requirements.
+Two `.joboptions` presets ship in [dist/](./dist/) — pick the one matching the job's paper stock:
 
-1. Download `helper-harry-print-uncoated-v1.0.joboptions` from [dist/](./dist/)
+- **`helper-harry-print-uncoated-v1.0.joboptions`** — PSO Uncoated v3 (FOGRA52). Use for uncoated, recycled, and semi-recycled stocks. Most Factory jobs fall here.
+- **`helper-harry-print-coated-v1.0.joboptions`** — Coated FOGRA39 (ISO 12647-2:2004). Use for coated / silk / gloss stocks.
+
+**Both presets share the same structural settings** — PDF/X-4:2010, 3 mm bleed, crop marks, 300 DPI, CMYK preserved, fonts embedded. Only the output intent (ICC profile) differs.
+
+**Install (per preset):**
+
+1. Download the `.joboptions` file
 2. In **InDesign**: File → Adobe PDF Presets → Define → Load → select the file → Open
 3. In **Acrobat / Distiller**: double-click the `.joboptions` file and it auto-installs
-4. When exporting a PDF, pick **Helper Harry Print - Uncoated** from the preset dropdown
+4. When exporting a PDF, pick **Helper Harry Print - Uncoated** or **Helper Harry Print - Coated** from the preset dropdown
 
-### 3. ICC Profile (required for the PDF preset)
+### 3. ICC Profiles (required for the PDF presets)
 
-The preset uses **PSO Uncoated v3 (FOGRA52)** as the output intent. This ICC profile ships with recent Adobe Creative Cloud installs by default, but older machines may need a manual install.
+The presets use **PSO Uncoated v3 (FOGRA52)** and **Coated FOGRA39**. These ICC profiles ship with recent Adobe Creative Cloud installs by default, but older machines may need a manual install.
 
-**How to check:** open InDesign → Edit → Color Settings → look under CMYK Working Space. If "Coated FOGRA39" appears but "PSO Uncoated v3 (FOGRA52)" does not, install the ECI offset profile pack.
+**How to check:** open InDesign → Edit → Color Settings → look under CMYK Working Space. If either profile is missing, install the ECI offset profile pack below.
 
 **Where to get it (free):**
 

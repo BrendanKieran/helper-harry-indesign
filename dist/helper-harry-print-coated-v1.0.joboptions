@@ -1,0 +1,264 @@
+%!PS-Adobe-3.0
+%%Title: (Helper Harry Print - Coated)
+%%Version: 1 2.0
+%%Creator: (Helper Harry v1.0.0)
+%%LanguageLevel: 3
+<<
+    /CompatibilityLevel 1.6
+    /CompressObjects /Tags
+    /CompressPages true
+    /ConvertImagesToIndexed true
+    /PassThroughJPEGImages true
+    /CreateJobTicket false
+    /DefaultRenderingIntent /Default
+    /DetectBlends true
+    /DetectCurves 0.0000
+    /ColorConversionStrategy /LeaveColorUnchanged
+    /DoThumbnails false
+    /EmbedAllFonts true
+    /EmbedOpenType false
+    /ParseICCProfilesInComments true
+    /EmbedJobOptions true
+    /DSCReportingLevel 0
+    /EmitDSCWarnings false
+    /EndPage -1
+    /ImageMemory 1048576
+    /LockDistillerParams false
+    /MaxSubsetPct 100
+    /Optimize true
+    /OPM 1
+    /ParseDSCComments true
+    /ParseDSCCommentsForDocInfo true
+    /PreserveCopyPage true
+    /PreserveDICMYKValues true
+    /PreserveEPSInfo true
+    /PreserveFlatness false
+    /PreserveHalftoneInfo false
+    /PreserveOPIComments true
+    /PreserveOverprintSettings true
+    /StartPage 1
+    /SubsetFonts true
+    /TransferFunctionInfo /Preserve
+    /UCRandBGInfo /Preserve
+    /UsePrologue false
+    /ColorSettingsFile ()
+    /AlwaysEmbed [ true
+    ]
+    /NeverEmbed [ true
+    ]
+    /AntiAliasColorImages false
+    /CropColorImages false
+    /ColorImageMinResolution 300
+    /ColorImageMinResolutionPolicy /OK
+    /DownsampleColorImages true
+    /ColorImageDownsampleType /Bicubic
+    /ColorImageResolution 300
+    /ColorImageDepth -1
+    /ColorImageMinDownsampleDepth 1
+    /ColorImageDownsampleThreshold 1.50000
+    /EncodeColorImages true
+    /ColorImageFilter /DCTEncode
+    /AutoFilterColorImages true
+    /ColorImageAutoFilterStrategy /JPEG
+    /ColorACSImageDict <<
+      /QFactor 0.15
+      /HSamples [1 1 1 1] /VSamples [1 1 1 1]
+    >>
+    /ColorImageDict <<
+      /QFactor 0.15
+      /HSamples [1 1 1 1] /VSamples [1 1 1 1]
+    >>
+    /JPEG2000ColorACSImageDict <<
+      /TileWidth 256
+      /TileHeight 256
+      /Quality 30
+    >>
+    /JPEG2000ColorImageDict <<
+      /TileWidth 256
+      /TileHeight 256
+      /Quality 30
+    >>
+    /AntiAliasGrayImages false
+    /CropGrayImages false
+    /GrayImageMinResolution 300
+    /GrayImageMinResolutionPolicy /OK
+    /DownsampleGrayImages true
+    /GrayImageDownsampleType /Bicubic
+    /GrayImageResolution 300
+    /GrayImageDepth -1
+    /GrayImageMinDownsampleDepth 2
+    /GrayImageDownsampleThreshold 1.50000
+    /EncodeGrayImages true
+    /GrayImageFilter /DCTEncode
+    /AutoFilterGrayImages true
+    /GrayImageAutoFilterStrategy /JPEG
+    /GrayACSImageDict <<
+      /QFactor 0.15
+      /HSamples [1 1 1 1] /VSamples [1 1 1 1]
+    >>
+    /GrayImageDict <<
+      /QFactor 0.15
+      /HSamples [1 1 1 1] /VSamples [1 1 1 1]
+    >>
+    /JPEG2000GrayACSImageDict <<
+      /TileWidth 256
+      /TileHeight 256
+      /Quality 30
+    >>
+    /JPEG2000GrayImageDict <<
+      /TileWidth 256
+      /TileHeight 256
+      /Quality 30
+    >>
+    /AntiAliasMonoImages false
+    /CropMonoImages false
+    /MonoImageMinResolution 1200
+    /MonoImageMinResolutionPolicy /OK
+    /DownsampleMonoImages true
+    /MonoImageDownsampleType /Bicubic
+    /MonoImageResolution 1200
+    /MonoImageDepth -1
+    /MonoImageDownsampleThreshold 1.50000
+    /EncodeMonoImages true
+    /MonoImageFilter /CCITTFaxEncode
+    /MonoImageDict <<
+      /K -1
+    >>
+    /AllowPSXObjects false
+    /CheckCompliance [
+        /PDFX4:2010
+    ]
+    /PDFX1aCheck false
+    /PDFX3Check false
+    /PDFXCompliantPDFOnly false
+    /PDFXNoTrimBoxError false
+    /PDFXTrimBoxToMediaBoxOffset [
+      0.00000
+      0.00000
+      0.00000
+      0.00000
+    ]
+    /PDFXSetBleedBoxToMediaBox false
+    /PDFXBleedBoxToTrimBoxOffset [
+      8.50394
+      8.50394
+      8.50394
+      8.50394
+    ]
+    /PDFXOutputIntentProfile (Coated FOGRA39 \050ISO 12647-2:2004\051)
+    /PDFXOutputConditionIdentifier (FOGRA39)
+    /PDFXOutputCondition ()
+    /PDFXRegistryName (http://www.color.org)
+    /PDFXTrapped /False
+
+    /Description <<
+      /ENU ([Based on 'Helper Harry Print - Coated'] PDF/X-4:2010 with Coated FOGRA39 \050ISO 12647-2:2004\051 output intent. Tuned for coated stocks. 3 mm bleed, crop marks, 300 DPI, CMYK preserved. Created PDF documents can be opened with Acrobat and Adobe Reader 7.0 and later.)
+    >>
+    /Namespace [
+        (Adobe)
+        (Common)
+        (1.0)
+    ]
+    /OtherNamespaces [
+        <<
+            /AsReaderSpreads false
+            /CropImagesToFrames true
+            /ErrorControl /WarnAndContinue
+            /FlattenerIgnoreSpreadOverrides false
+            /IncludeGuidesGrids false
+            /IncludeNonPrinting false
+            /IncludeSlug false
+            /Namespace [
+                (Adobe)
+                (InDesign)
+                (4.0)
+            ]
+            /OmitPlacedBitmaps false
+            /OmitPlacedEPS false
+            /OmitPlacedPDF false
+            /SimulateOverprint /Legacy
+        >>
+        <<
+            /AddBleedMarks true
+            /AddColorBars false
+            /AddCropMarks true
+            /AddPageInfo false
+            /AddRegMarks false
+            /BleedOffset [
+                8.503940
+                8.503940
+                8.503940
+                8.503940
+            ]
+            /ConvertColors /NoConversion
+            /DestinationProfileName (Coated FOGRA39 \050ISO 12647-2:2004\051)
+            /DestinationProfileSelector /UseName
+            /Downsample16BitImages true
+            /FlattenerPreset <<
+                /PresetSelector /HighResolution
+            >>
+            /FormElements false
+            /GenerateStructure false
+            /IncludeBookmarks false
+            /IncludeHyperlinks false
+            /IncludeInteractive false
+            /IncludeLayers false
+            /IncludeProfiles true
+            /MarksOffset 6
+            /MarksWeight 0.250000
+            /MultimediaHandling /UseObjectSettings
+            /Namespace [
+                (Adobe)
+                (CreativeSuite)
+                (2.0)
+            ]
+            /PDFXOutputIntentProfileSelector /UseName
+            /PageMarksFile /RomanDefault
+            /PreserveEditing true
+            /UntaggedCMYKHandling /LeaveUntagged
+            /UntaggedRGBHandling /UseDocumentProfile
+            /UseDocumentBleed false
+        >>
+        <<
+            /AllowImageBreaks true
+            /AllowTableBreaks true
+            /ExpandPage false
+            /HonorBaseURL true
+            /HonorRolloverEffect false
+            /IgnoreHTMLPageBreaks false
+            /IncludeHeaderFooter false
+            /MarginOffset [
+                0
+                0
+                0
+                0
+            ]
+            /MetadataAuthor ()
+            /MetadataKeywords ()
+            /MetadataSubject ()
+            /MetadataTitle ()
+            /MetricPageSize [
+                0
+                0
+            ]
+            /MetricUnit /inch
+            /MobileCompatible 0
+            /Namespace [
+                (Adobe)
+                (GoLive)
+                (8.0)
+            ]
+            /OpenZoomToHTMLFontSize false
+            /PageOrientation /Portrait
+            /RemoveBackground false
+            /ShrinkContent true
+            /TreatColorsAs /MainMonitorColors
+            /UseEmbeddedProfiles false
+            /UseHTMLTitleAsMetadata true
+        >>
+    ]
+>> setdistillerparams
+<<
+    /HWResolution [2400 2400]
+    /PageSize [612.000 792.000]
+>> setpagedevice
