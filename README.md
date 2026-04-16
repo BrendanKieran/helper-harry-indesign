@@ -17,19 +17,55 @@ UXP plugin for Adobe InDesign that connects to Helper Harry's print shop workflo
 - Helper Harry account with Workflow module access
 - macOS or Windows
 
+---
+
 ## Installation
 
-### Development (sideload)
+### 1. Plugin
+
+**Recommended — install from .ccx:**
+
+1. Download the latest `.ccx` from [dist/](./dist/)
+2. Double-click the `.ccx` file. The Adobe Creative Cloud desktop app will open and offer to install.
+3. Click **Install**. InDesign installs the plugin automatically.
+4. Relaunch InDesign → Window → **Helper Harry** to show the panel.
+5. Sign in with your Helper Harry credentials on first launch.
+
+**Alternative — development sideload:**
 
 1. Open InDesign
 2. Go to **Plugins → Development → Show Plugin Folder**
-3. Copy the `helper-harry-indesign` folder into the plugins folder
-4. Restart InDesign
-5. Go to **Window → Helper Harry** to open the panel
+3. Clone or copy the plugin source folder into the plugins folder
+4. Restart InDesign → Window → Helper Harry
 
-### Production (Adobe Exchange)
+### 2. Print PDF Preset
 
-Coming soon — will be distributed via Adobe Exchange marketplace.
+The `.joboptions` file in [dist/](./dist/) gives you a press-ready export preset matching the target print shop's stock and colour requirements.
+
+1. Download `helper-harry-print-uncoated-v1.0.joboptions` from [dist/](./dist/)
+2. In **InDesign**: File → Adobe PDF Presets → Define → Load → select the file → Open
+3. In **Acrobat / Distiller**: double-click the `.joboptions` file and it auto-installs
+4. When exporting a PDF, pick **Helper Harry Print - Uncoated** from the preset dropdown
+
+### 3. ICC Profile (required for the PDF preset)
+
+The preset uses **PSO Uncoated v3 (FOGRA52)** as the output intent. This ICC profile ships with recent Adobe Creative Cloud installs by default, but older machines may need a manual install.
+
+**How to check:** open InDesign → Edit → Color Settings → look under CMYK Working Space. If "Coated FOGRA39" appears but "PSO Uncoated v3 (FOGRA52)" does not, install the ECI offset profile pack.
+
+**Where to get it (free):**
+
+- <https://www.eci.org/downloads> → download "ECI offset profiles 2009" or "eci_offset_2009" package
+- Unzip and move the `.icc` files to the Adobe colour folder:
+  - **macOS**: `~/Library/Application Support/Adobe/Color/Profiles/`
+  - **Windows**: `C:\Windows\System32\spool\drivers\color\`
+- Restart InDesign. The FOGRA52 profile should now appear in the output-intent dropdown.
+
+### 4. Production (Adobe Exchange)
+
+Coming soon — the plugin will be distributed via Adobe Exchange for one-click install from within Creative Cloud.
+
+---
 
 ## Configuration
 
@@ -46,6 +82,8 @@ On first launch, log in with your Helper Harry email and password. The plugin st
 | Auto Upload Proof | true | Upload proof PDF to HH after export |
 | Proof Resolution | 150 DPI | Quality for proof exports |
 | OK PDF Resolution | 300 DPI | Quality for press-ready exports |
+
+---
 
 ## Project Structure
 
@@ -64,9 +102,14 @@ helper-harry-indesign/
 │   │   └── placeAsset.js      — place images from customer assets
 │   └── utils/
 │       └── storage.js     — UXP secure storage for prefs/tokens
+├── dist/
+│   ├── helper-harry-indesign-v1.0.0.ccx        — plugin bundle
+│   └── helper-harry-print-uncoated-v1.0.joboptions  — PDF preset
 └── icons/
     └── plugin-icon.png    — panel icon
 ```
+
+---
 
 ## API Endpoints Used
 
@@ -83,12 +126,32 @@ The plugin calls Helper Harry's existing API:
 | `GET /api/workflow/customers/:id/assets` | Customer asset library |
 | `GET /api/workflow/customer-assets/:id/url` | Asset download URL |
 
-## Workflow
+---
+
+## Designer Workflow
 
 1. Designer opens InDesign → opens Helper Harry panel
-2. Sees assigned jobs → clicks "Create Document" on a job
-3. Plugin creates InDesign document with correct specs
-4. Designer works on the design
-5. Clicks "Export Proof" → uploads to HH → customer gets proof email
-6. Customer approves → designer clicks "Export OK PDF"
+2. Sees assigned jobs → clicks **Create Document** on a job
+3. Plugin creates InDesign document with correct specs (page size, bleed, margins, pages)
+4. Designer works on the layout
+5. Clicks **Export Proof** → uploads to HH → customer gets proof email
+6. Customer approves → designer clicks **Export OK PDF** (uses the Helper Harry Print preset)
 7. Press-ready PDF uploaded to HH → printer sees it in their queue
+
+---
+
+## Troubleshooting
+
+**"Plugin panel is blank / won't load"**
+- Check your InDesign version is 2024 (18.5+) or later. UXP isn't supported on older versions.
+- Quit InDesign fully (not just close window) and relaunch.
+
+**"Output intent profile not found" when exporting PDF**
+- Install the PSO Uncoated v3 ICC profile — see section 3 above.
+
+**"Sign in failed"**
+- Confirm you can sign in to `https://app.helperharry.com` in your browser first.
+- Check your org has Workflow module access (contact your admin).
+
+**Everything else**
+- Contact support at [support@helperharry.com](mailto:support@helperharry.com).
