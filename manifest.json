@@ -1,0 +1,33 @@
+{
+  "manifestVersion": 6,
+  "id": "com.helperharry.indesign",
+  "name": "Helper Harry",
+  "version": "1.0.0",
+  "main": "index.html",
+  "host": [
+    {
+      "app": "ID",
+      "minVersion": "18.0"
+    }
+  ],
+  "entrypoints": [
+    {
+      "type": "panel",
+      "id": "hhPanel",
+      "label": "Helper Harry",
+      "minimumSize": { "width": 280, "height": 400 },
+      "maximumSize": { "width": 400, "height": 2000 },
+      "preferredDockedSize": { "width": 300, "height": 600 }
+    }
+  ],
+  "requiredPermissions": {
+    "network": {
+      "domains": [
+        "https://app.helperharry.com",
+        "https://*.r2.cloudflarestorage.com"
+      ]
+    },
+    "localFileSystem": "fullAccess",
+    "clipboard": "readAndWrite"
+  }
+}

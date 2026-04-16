@@ -1,0 +1,15 @@
+# macOS
+.DS_Store
+# Build artefacts
+*.ccx
+*.zxp
+dist/
+# IDE
+.vscode/
+.idea/
+*.swp
+# OS
+Thumbs.db
+# Env / secrets
+.env
+.env.local
