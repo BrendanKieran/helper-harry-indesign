@@ -3,7 +3,6 @@
 # Build artefacts
 *.ccx
 *.zxp
-dist/
 # IDE
 .vscode/
 .idea/
