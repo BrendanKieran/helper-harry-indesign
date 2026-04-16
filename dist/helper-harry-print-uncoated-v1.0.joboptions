@@ -1,5 +1,5 @@
 %!PS-Adobe-3.0
-%%Title: (Helper Harry Print)
+%%Title: (Helper Harry Print - Uncoated)
 %%Version: 1 2.0
 %%Creator: (Helper Harry v1.0.0)
 %%LanguageLevel: 3
@@ -145,14 +145,14 @@
       8.50394
       8.50394
     ]
-    /PDFXOutputIntentProfile (Coated FOGRA39 \050ISO 12647-2:2004\051)
-    /PDFXOutputConditionIdentifier (FOGRA39)
+    /PDFXOutputIntentProfile (PSO Uncoated v3 \050FOGRA52\051)
+    /PDFXOutputConditionIdentifier (FOGRA52)
     /PDFXOutputCondition ()
     /PDFXRegistryName (http://www.color.org)
     /PDFXTrapped /False
 
     /Description <<
-      /ENU ([Based on 'Helper Harry Print'] Use these settings to create Adobe PDF documents that are to be checked or must conform to PDF/X-4:2010, an ISO standard for graphic content exchange. For more information on creating PDF/X-4 compliant PDF documents, please refer to the Acrobat User Guide. Created PDF documents can be opened with Acrobat and Adobe Reader 7.0 and later.)
+      /ENU ([Based on 'Helper Harry Print - Uncoated'] PDF/X-4:2010 with PSO Uncoated v3 \050FOGRA52\051 output intent. Tuned for uncoated, recycled and semi-recycled stocks. 3 mm bleed, crop marks, 300 DPI, CMYK preserved. Created PDF documents can be opened with Acrobat and Adobe Reader 7.0 and later.)
     >>
     /Namespace [
         (Adobe)
@@ -191,7 +191,7 @@
                 8.503940
             ]
             /ConvertColors /NoConversion
-            /DestinationProfileName (Coated FOGRA39 \050ISO 12647-2:2004\051)
+            /DestinationProfileName (PSO Uncoated v3 \050FOGRA52\051)
             /DestinationProfileSelector /UseName
             /Downsample16BitImages true
             /FlattenerPreset <<
