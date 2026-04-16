@@ -1,8 +1,6 @@
 # macOS
 .DS_Store
 # Build artefacts
-*.ccx
-*.zxp
 # IDE
 .vscode/
 .idea/
