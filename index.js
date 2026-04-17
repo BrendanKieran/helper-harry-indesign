@@ -99,20 +99,16 @@ async function renderMain(root) {
 
   document.getElementById('logout-btn').addEventListener('click', async () => { await auth.logout(); renderLogin(root); });
   document.getElementById('refresh-btn').addEventListener('click', () => loadJobs());
-  const settingsBtn = document.getElementById('settings-btn');
-  if (settingsBtn) {
-    settingsBtn.addEventListener('click', async () => {
-      console.log('[HH Plugin] Settings button clicked');
-      try {
-        await showSettings();
-      } catch (e) {
-        console.error('[HH Plugin] Settings error:', e);
-        showError('Settings: ' + e.message);
-      }
-    });
-  } else {
-    console.error('[HH Plugin] settings-btn not found in DOM');
-  }
+  // UXP quirk: addEventListener on innerHTML-created elements can be
+  // unreliable. Use event delegation on the root instead — a single
+  // click handler that checks the target's id. This always works
+  // because the root element exists before innerHTML is assigned.
+  root.addEventListener('click', function(e) {
+    const btn = e.target.closest('#settings-btn');
+    if (btn) {
+      showSettings().catch(function(err) { showError('Settings: ' + err.message); });
+    }
+  });
 
   loadJobs();
 }
