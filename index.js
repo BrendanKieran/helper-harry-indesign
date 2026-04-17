@@ -100,13 +100,76 @@ async function renderMain(root) {
   document.getElementById('logout-btn').addEventListener('click', async () => { await auth.logout(); renderLogin(root); });
   document.getElementById('refresh-btn').addEventListener('click', () => loadJobs());
   document.getElementById('settings-btn').addEventListener('click', function() {
-    // Phase 1: test if click fires at all
     var overlay = document.getElementById('settings-overlay');
-    overlay.innerHTML = '<div class="settings-panel"><h2>Settings</h2><p style="color:var(--text);">Click worked! Full settings panel loading...</p><button id="settings-close" class="btn btn-secondary btn-sm" style="margin-top:12px;">Close</button></div>';
+    var html = '<div class="settings-panel">';
+    html += '<h2>Settings</h2>';
+    html += '<div class="field"><label class="label">Working Folder</label>';
+    html += '<div style="display:flex;gap:4px"><input id="pref-folder" class="input input-sm" value="" placeholder="Click Browse" readonly style="flex:1" />';
+    html += '<button id="browse-folder-btn" class="btn btn-secondary btn-sm">Browse</button></div></div>';
+    html += '<div class="field"><label class="label">Folder Structure (year / customer / flat)</label>';
+    html += '<input id="pref-folder-structure" class="input input-sm" value="year" /></div>';
+    html += '<div class="field"><label class="label">Default Bleed (mm)</label>';
+    html += '<input id="pref-bleed" class="input input-sm" type="number" value="3" /></div>';
+    html += '<div class="field"><label class="label">Default Margins (mm)</label>';
+    html += '<input id="pref-margins" class="input input-sm" type="number" value="6" /></div>';
+    html += '<div class="field"><label class="label">Proof DPI</label>';
+    html += '<input id="pref-proof-dpi" class="input input-sm" type="number" value="150" /></div>';
+    html += '<div class="field"><label class="label">OK PDF DPI</label>';
+    html += '<input id="pref-ok-dpi" class="input input-sm" type="number" value="300" /></div>';
+    html += '<div class="field"><label class="label">Auto-upload proof (true/false)</label>';
+    html += '<input id="pref-auto-upload" class="input input-sm" value="true" /></div>';
+    html += '<div class="field"><label class="label">API URL</label>';
+    html += '<input id="pref-api-url" class="input input-sm" value="https://app.helperharry.com/api" /></div>';
+    html += '<div class="settings-actions">';
+    html += '<button id="settings-cancel" class="btn btn-secondary btn-sm">Cancel</button>';
+    html += '<button id="settings-save" class="btn btn-primary btn-sm">Save</button>';
+    html += '</div></div>';
+    overlay.innerHTML = html;
     overlay.style.display = 'flex';
-    document.getElementById('settings-close').addEventListener('click', function() { overlay.style.display = 'none'; });
-    // Phase 2: load real settings after confirming click works
-    showSettings().catch(function(err) { overlay.innerHTML = '<div class="settings-panel"><h2>Error</h2><p style="color:var(--red);">' + err.message + '</p><button id="settings-close2" class="btn btn-secondary btn-sm" style="margin-top:8px;">Close</button></div>'; document.getElementById('settings-close2').addEventListener('click', function() { overlay.style.display = 'none'; }); });
+
+    // Load saved prefs into the fields (async but non-blocking)
+    getPrefs().then(function(prefs) {
+      if (!prefs) return;
+      try {
+        var el;
+        el = document.getElementById('pref-folder'); if (el) el.value = prefs.workingFolder || '';
+        el = document.getElementById('pref-folder-structure'); if (el) el.value = prefs.folderStructure || 'year';
+        el = document.getElementById('pref-bleed'); if (el) el.value = prefs.defaultBleed || 3;
+        el = document.getElementById('pref-margins'); if (el) el.value = prefs.defaultMargins || 6;
+        el = document.getElementById('pref-proof-dpi'); if (el) el.value = prefs.proofResolution || 150;
+        el = document.getElementById('pref-ok-dpi'); if (el) el.value = prefs.okPdfResolution || 300;
+        el = document.getElementById('pref-auto-upload'); if (el) el.value = prefs.autoSaveProof ? 'true' : 'false';
+        el = document.getElementById('pref-api-url'); if (el) el.value = prefs.apiUrl || 'https://app.helperharry.com/api';
+      } catch(e) {}
+    }).catch(function() {});
+
+    document.getElementById('browse-folder-btn').addEventListener('click', function() {
+      fs.getFolder().then(function(folder) {
+        if (folder) document.getElementById('pref-folder').value = folder.nativePath;
+      }).catch(function() {});
+    });
+    document.getElementById('settings-cancel').addEventListener('click', function() {
+      overlay.style.display = 'none';
+    });
+    document.getElementById('settings-save').addEventListener('click', function() {
+      var updated = {
+        apiUrl: document.getElementById('pref-api-url').value.trim() || 'https://app.helperharry.com/api',
+        workingFolder: document.getElementById('pref-folder').value || '',
+        folderStructure: document.getElementById('pref-folder-structure').value || 'year',
+        defaultBleed: parseFloat(document.getElementById('pref-bleed').value) || 3,
+        defaultMargins: parseFloat(document.getElementById('pref-margins').value) || 6,
+        proofResolution: parseInt(document.getElementById('pref-proof-dpi').value) || 150,
+        okPdfResolution: parseInt(document.getElementById('pref-ok-dpi').value) || 300,
+        autoSaveProof: document.getElementById('pref-auto-upload').value === 'true',
+        openPdfAfterExport: true
+      };
+      savePrefs(updated).then(function() {
+        overlay.style.display = 'none';
+        showStatus('Settings saved');
+      }).catch(function(err) {
+        showError('Save failed');
+      });
+    });
   });
 
   loadJobs();
