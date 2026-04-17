@@ -79,7 +79,7 @@ async function renderMain(root) {
       <span class="header-logo">Helper Harry</span>
       <span class="header-user">${email.split('@')[0]}</span>
       <span style="margin-left: auto; display: flex; gap: 4px; align-items: center;">
-        <button id="settings-btn" class="gear-btn" title="Settings" onclick="showSettings()">&#9881;</button>
+        <button id="settings-btn" class="gear-btn" title="Settings">Settings</button>
         <button id="logout-btn" class="btn btn-secondary btn-sm">Logout</button>
       </span>
     </div>
@@ -99,7 +99,20 @@ async function renderMain(root) {
 
   document.getElementById('logout-btn').addEventListener('click', async () => { await auth.logout(); renderLogin(root); });
   document.getElementById('refresh-btn').addEventListener('click', () => loadJobs());
-  document.getElementById('settings-btn').addEventListener('click', () => showSettings());
+  const settingsBtn = document.getElementById('settings-btn');
+  if (settingsBtn) {
+    settingsBtn.addEventListener('click', async () => {
+      console.log('[HH Plugin] Settings button clicked');
+      try {
+        await showSettings();
+      } catch (e) {
+        console.error('[HH Plugin] Settings error:', e);
+        showError('Settings: ' + e.message);
+      }
+    });
+  } else {
+    console.error('[HH Plugin] settings-btn not found in DOM');
+  }
 
   loadJobs();
 }
