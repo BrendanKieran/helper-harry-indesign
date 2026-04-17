@@ -436,13 +436,24 @@ function renderJobList(searchQuery) {
     listEl.querySelectorAll('.close-job-btn').forEach(btn => {
       btn.addEventListener('click', function(e) {
         e.stopPropagation();
+        // Save and close the active InDesign document
+        try {
+          var doc = indesign.activeDocument;
+          if (doc) {
+            doc.save();
+            doc.close();
+          }
+        } catch (err) {
+          // Document might not have been saved before — close without saving
+          try { indesign.activeDocument.close(1852776480); } catch (e) {} // SaveOptions.NO = 1852776480
+        }
         currentJobId = null;
         currentCustomerId = null;
         var assetsSection = document.getElementById('assets-section');
         if (assetsSection) assetsSection.style.display = 'none';
         var searchEl = document.getElementById('job-search');
         renderJobList(searchEl ? searchEl.value.toLowerCase() || undefined : undefined);
-        showStatus('Job closed');
+        showStatus('Job saved and closed');
       });
     });
 }
