@@ -271,7 +271,10 @@ async function loadJobs() {
     const data = await workflow.getMyJobs();
     allJobsCache = [...(data.urgent || []), ...(data.thisWeek || []), ...(data.later || [])];
     allJobsCache.forEach(j => { jobCache[j.id] = j; });
-    renderJobList();
+    // Preserve any active search filter
+    var searchEl = document.getElementById('job-search');
+    var currentSearch = searchEl ? searchEl.value.toLowerCase() : '';
+    renderJobList(currentSearch || undefined);
   } catch (err) {
     listEl.innerHTML = '<div class="msg msg-error">' + err.message + '</div>';
   }
@@ -319,6 +322,7 @@ function renderJobList(searchQuery) {
             <div class="job-meta">${custName}</div>
             ${specsText ? `<div class="job-specs">${specsText}</div>` : ''}
             <div class="job-actions">
+              <button class="btn btn-secondary btn-sm save-btn" data-job-id="${job.id}">Save</button>
               <button class="btn btn-amber btn-sm export-proof-btn" data-job-id="${job.id}" data-job-number="${job.job_number}">Export Proof</button>
               <button class="btn btn-green btn-sm export-ok-btn" data-job-id="${job.id}" data-job-number="${job.job_number}">Export OK PDF</button>
               <button class="btn btn-secondary btn-sm upload-btn" data-job-id="${job.id}" data-job-number="${job.job_number}">Upload File</button>
@@ -348,6 +352,16 @@ function renderJobList(searchQuery) {
     });
     listEl.querySelectorAll('.open-doc-btn').forEach(btn => {
       btn.addEventListener('click', (e) => { e.stopPropagation(); handleOpenDocument(btn.dataset.jobId); });
+    });
+    listEl.querySelectorAll('.save-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        try {
+          var doc = indesign.activeDocument;
+          if (doc) { doc.save(); showStatus('Document saved'); }
+          else { showError('No document open'); }
+        } catch (err) { showError('Save failed: ' + err.message); }
+      });
     });
     listEl.querySelectorAll('.export-proof-btn').forEach(btn => {
       btn.addEventListener('click', (e) => { e.stopPropagation(); handleExportProof(btn.dataset.jobId, btn.dataset.jobNumber); });
@@ -650,14 +664,15 @@ async function handleUploadFile(jobId, jobNumber) {
 // ── Customer Assets ──
 
 async function loadCustomerAssets(customerId) {
-  const section = document.getElementById('assets-section');
-  const listEl = document.getElementById('asset-list');
+  var section = document.getElementById('assets-section');
+  var listEl = document.getElementById('asset-list');
   if (!section || !listEl) return;
   section.style.display = 'block';
+  listEl.innerHTML = '<div class="empty"><span class="spinner"></span> Loading assets...</div>';
 
   try {
-    const assets = await workflow.getCustomerAssets(customerId);
-    if (assets.length === 0) {
+    var assets = await workflow.getCustomerAssets(customerId);
+    if (!assets || !Array.isArray(assets) || assets.length === 0) {
       listEl.innerHTML = '<div class="empty">No assets for this customer</div>';
       return;
     }
