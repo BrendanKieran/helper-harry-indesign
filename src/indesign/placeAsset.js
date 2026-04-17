@@ -11,19 +11,24 @@ async function placeImage(doc, imageUrl, imageName) {
   const buffer = await response.arrayBuffer();
   await tempFile.write(buffer);
 
-  // Place in active page
-  const page = doc.layoutWindows[0].activePage;
-  const frame = page.rectangles.add();
+  // Place in active page — try multiple UXP-compatible access patterns
+  var page;
+  try { page = doc.layoutWindows[0].activePage; } catch (e) {}
+  if (!page) try { page = app.activeWindow.activePage; } catch (e) {}
+  if (!page) try { page = doc.pages[0]; } catch (e) {}
+  if (!page) throw new Error('No active page found — open a document first');
+
+  var frame = page.rectangles.add();
 
   // Default: 50x50mm centred on page
-  const pageWidth = parseFloat(doc.documentPreferences.pageWidth);
-  const pageHeight = parseFloat(doc.documentPreferences.pageHeight);
-  const size = Math.min(50, pageWidth * 0.4, pageHeight * 0.4);
-  const x = (pageWidth - size) / 2;
-  const y = (pageHeight - size) / 2;
+  var pageWidth = parseFloat(doc.documentPreferences.pageWidth);
+  var pageHeight = parseFloat(doc.documentPreferences.pageHeight);
+  var size = Math.min(50, pageWidth * 0.4, pageHeight * 0.4);
+  var x = (pageWidth - size) / 2;
+  var y = (pageHeight - size) / 2;
   frame.geometricBounds = [y, x, y + size, x + size];
 
-  frame.place(new File(tempFile.nativePath));
+  frame.place(tempFile.nativePath);
 
   // Fit proportionally
   try {
