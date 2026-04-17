@@ -302,123 +302,88 @@ async function handleOpenDocument(jobId) {
 // ── Settings Panel ──
 
 async function showSettings() {
-  const overlay = document.getElementById('settings-overlay');
-  if (!overlay) { alert('Settings overlay not found — try refreshing the plugin.'); return; }
-  let prefs;
-  try {
-    prefs = await getPrefs();
-  } catch (e) {
-    prefs = { apiUrl: 'https://app.helperharry.com/api', workingFolder: '', folderStructure: 'year', defaultBleed: 3, defaultMargins: 6, proofResolution: 150, okPdfResolution: 300, autoSaveProof: true, openPdfAfterExport: true };
-  }
+  var overlay = document.getElementById('settings-overlay');
+  if (!overlay) return;
 
+  var prefs = { apiUrl: 'https://app.helperharry.com/api', workingFolder: '', folderStructure: 'year', defaultBleed: 3, defaultMargins: 6, proofResolution: 150, okPdfResolution: 300, autoSaveProof: true, openPdfAfterExport: true };
+  try { var loaded = await getPrefs(); if (loaded) prefs = loaded; } catch (e) {}
+
+  // Build with simple inputs only — no <select>, no template expressions
+  // in attribute values (UXP can choke on those)
+  var html = '<div class="settings-panel">';
+  html += '<h2>Settings</h2>';
+
+  html += '<div class="field"><label class="label">Working Folder</label>';
+  html += '<div style="display:flex;gap:4px"><input id="pref-folder" class="input input-sm" value="" placeholder="Click Browse to set" readonly style="flex:1" />';
+  html += '<button id="browse-folder-btn" class="btn btn-secondary btn-sm">Browse</button></div></div>';
+
+  html += '<div class="field"><label class="label">Folder Structure (year / customer / flat)</label>';
+  html += '<input id="pref-folder-structure" class="input input-sm" value="" /></div>';
+
+  html += '<div class="field"><label class="label">Default Bleed (mm)</label>';
+  html += '<input id="pref-bleed" class="input input-sm" type="number" value="" /></div>';
+
+  html += '<div class="field"><label class="label">Default Margins (mm)</label>';
+  html += '<input id="pref-margins" class="input input-sm" type="number" value="" /></div>';
+
+  html += '<div class="field"><label class="label">Proof DPI (72 / 150 / 300)</label>';
+  html += '<input id="pref-proof-dpi" class="input input-sm" type="number" value="" /></div>';
+
+  html += '<div class="field"><label class="label">OK PDF DPI (150 / 300 / 600)</label>';
+  html += '<input id="pref-ok-dpi" class="input input-sm" type="number" value="" /></div>';
+
+  html += '<div class="field"><label class="label">Auto-upload proof (true / false)</label>';
+  html += '<input id="pref-auto-upload" class="input input-sm" value="" /></div>';
+
+  html += '<div class="field"><label class="label">API URL</label>';
+  html += '<input id="pref-api-url" class="input input-sm" value="" /></div>';
+
+  html += '<div class="settings-actions">';
+  html += '<button id="settings-cancel" class="btn btn-secondary btn-sm">Cancel</button>';
+  html += '<button id="settings-save" class="btn btn-primary btn-sm">Save</button>';
+  html += '</div></div>';
+
+  overlay.innerHTML = html;
   overlay.style.display = 'flex';
-  overlay.innerHTML = `
-    <div class="settings-panel">
-      <h2>&#9881; Settings</h2>
 
-      <div class="field">
-        <label class="label">Working Folder</label>
-        <div style="display: flex; gap: 4px;">
-          <input id="pref-folder" class="input input-sm" value="${prefs.workingFolder || ''}" placeholder="Not set — click Browse" readonly style="flex: 1;" />
-          <button id="browse-folder-btn" class="btn btn-secondary btn-sm">Browse</button>
-        </div>
-        <div style="font-size: 10px; color: var(--text-dim); margin-top: 2px;">Where job folders are created on this machine</div>
-      </div>
+  // Set values AFTER innerHTML (avoids template-in-attribute issues)
+  document.getElementById('pref-folder').value = prefs.workingFolder || '';
+  document.getElementById('pref-folder-structure').value = prefs.folderStructure || 'year';
+  document.getElementById('pref-bleed').value = prefs.defaultBleed || 3;
+  document.getElementById('pref-margins').value = prefs.defaultMargins || 6;
+  document.getElementById('pref-proof-dpi').value = prefs.proofResolution || 150;
+  document.getElementById('pref-ok-dpi').value = prefs.okPdfResolution || 300;
+  document.getElementById('pref-auto-upload').value = prefs.autoSaveProof ? 'true' : 'false';
+  document.getElementById('pref-api-url').value = prefs.apiUrl || 'https://app.helperharry.com/api';
 
-      <div class="field">
-        <label class="label">Folder Structure</label>
-        <select id="pref-folder-structure" class="input input-sm">
-          <option value="year" ${prefs.folderStructure === 'year' ? 'selected' : ''}>By Year (2026/JOB-001/)</option>
-          <option value="customer" ${prefs.folderStructure === 'customer' ? 'selected' : ''}>By Customer (Acme/JOB-001/)</option>
-          <option value="flat" ${prefs.folderStructure === 'flat' ? 'selected' : ''}>Flat (JOB-001/)</option>
-        </select>
-      </div>
-
-      <div class="settings-row">
-        <div class="field">
-          <label class="label">Default Bleed (mm)</label>
-          <input id="pref-bleed" class="input input-sm" type="number" value="${prefs.defaultBleed}" min="0" max="25" step="0.5" />
-        </div>
-        <div class="field">
-          <label class="label">Default Margins (mm)</label>
-          <input id="pref-margins" class="input input-sm" type="number" value="${prefs.defaultMargins}" min="0" max="50" step="1" />
-        </div>
-      </div>
-
-      <div class="settings-row">
-        <div class="field">
-          <label class="label">Proof Resolution (DPI)</label>
-          <select id="pref-proof-dpi" class="input input-sm">
-            <option value="72" ${prefs.proofResolution === 72 ? 'selected' : ''}>72 (screen)</option>
-            <option value="150" ${prefs.proofResolution === 150 ? 'selected' : ''}>150 (standard)</option>
-            <option value="300" ${prefs.proofResolution === 300 ? 'selected' : ''}>300 (high)</option>
-          </select>
-        </div>
-        <div class="field">
-          <label class="label">OK PDF Resolution (DPI)</label>
-          <select id="pref-ok-dpi" class="input input-sm">
-            <option value="150" ${prefs.okPdfResolution === 150 ? 'selected' : ''}>150</option>
-            <option value="300" ${prefs.okPdfResolution === 300 ? 'selected' : ''}>300 (standard)</option>
-            <option value="600" ${prefs.okPdfResolution === 600 ? 'selected' : ''}>600 (high)</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="field">
-        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 11px;">
-          <input id="pref-auto-upload" type="checkbox" ${prefs.autoSaveProof ? 'checked' : ''} />
-          Auto-upload proof PDF to Helper Harry after export
-        </label>
-      </div>
-
-      <div class="field">
-        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 11px;">
-          <input id="pref-open-pdf" type="checkbox" ${prefs.openPdfAfterExport ? 'checked' : ''} />
-          Open PDF after export
-        </label>
-      </div>
-
-      <div class="field">
-        <label class="label">API URL</label>
-        <input id="pref-api-url" class="input input-sm" value="${prefs.apiUrl}" placeholder="https://app.helperharry.com/api" />
-        <div style="font-size: 10px; color: var(--text-dim); margin-top: 2px;">Only change this if your shop runs a self-hosted instance</div>
-      </div>
-
-      <div class="settings-actions">
-        <button id="settings-cancel" class="btn btn-secondary btn-sm">Cancel</button>
-        <button id="settings-save" class="btn btn-primary btn-sm">Save</button>
-      </div>
-    </div>
-  `;
-
-  // Browse folder button
-  document.getElementById('browse-folder-btn').addEventListener('click', async () => {
-    try {
-      const folder = await fs.getFolder();
+  document.getElementById('browse-folder-btn').addEventListener('click', function() {
+    fs.getFolder().then(function(folder) {
       if (folder) document.getElementById('pref-folder').value = folder.nativePath;
-    } catch (e) { /* user cancelled */ }
+    }).catch(function() {});
   });
 
-  document.getElementById('settings-cancel').addEventListener('click', () => {
+  document.getElementById('settings-cancel').addEventListener('click', function() {
     overlay.style.display = 'none';
   });
 
-  document.getElementById('settings-save').addEventListener('click', async () => {
-    const updated = {
-      ...prefs,
+  document.getElementById('settings-save').addEventListener('click', function() {
+    var updated = {
+      apiUrl: document.getElementById('pref-api-url').value.trim() || 'https://app.helperharry.com/api',
       workingFolder: document.getElementById('pref-folder').value || '',
-      folderStructure: document.getElementById('pref-folder-structure').value,
+      folderStructure: document.getElementById('pref-folder-structure').value || 'year',
       defaultBleed: parseFloat(document.getElementById('pref-bleed').value) || 3,
       defaultMargins: parseFloat(document.getElementById('pref-margins').value) || 6,
-      proofResolution: parseInt(document.getElementById('pref-proof-dpi').value) || 150,
+      proofResolution: parseInt(document.getElementById('pref-ok-dpi').value) || 150,
       okPdfResolution: parseInt(document.getElementById('pref-ok-dpi').value) || 300,
-      autoSaveProof: document.getElementById('pref-auto-upload').checked,
-      openPdfAfterExport: document.getElementById('pref-open-pdf').checked,
-      apiUrl: document.getElementById('pref-api-url').value.trim() || 'https://app.helperharry.com/api'
+      autoSaveProof: document.getElementById('pref-auto-upload').value === 'true',
+      openPdfAfterExport: true
     };
-    await savePrefs(updated);
-    overlay.style.display = 'none';
-    showStatus('Settings saved');
+    savePrefs(updated).then(function() {
+      overlay.style.display = 'none';
+      showStatus('Settings saved');
+    }).catch(function(err) {
+      showError('Save failed: ' + err.message);
+    });
   });
 }
 
