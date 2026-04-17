@@ -18,6 +18,12 @@ let currentJobId = null;
 let currentCustomerId = null;
 let jobCache = {}; // cache job numbers for export
 
+// Expose key functions globally so onclick attributes work in UXP
+// (module-scoped functions aren't on the window object by default)
+if (typeof window !== 'undefined') {
+  window.showSettings = function() { showSettings(); };
+}
+
 // ── Render the UI ──
 
 async function render() {
@@ -73,7 +79,7 @@ async function renderMain(root) {
       <span class="header-logo">Helper Harry</span>
       <span class="header-user">${email.split('@')[0]}</span>
       <span style="margin-left: auto; display: flex; gap: 4px; align-items: center;">
-        <button id="settings-btn" class="gear-btn" title="Settings">&#9881;</button>
+        <button id="settings-btn" class="gear-btn" title="Settings" onclick="showSettings()">&#9881;</button>
         <button id="logout-btn" class="btn btn-secondary btn-sm">Logout</button>
       </span>
     </div>
@@ -289,7 +295,13 @@ async function handleOpenDocument(jobId) {
 
 async function showSettings() {
   const overlay = document.getElementById('settings-overlay');
-  const prefs = await getPrefs();
+  if (!overlay) { alert('Settings overlay not found — try refreshing the plugin.'); return; }
+  let prefs;
+  try {
+    prefs = await getPrefs();
+  } catch (e) {
+    prefs = { apiUrl: 'https://app.helperharry.com/api', workingFolder: '', folderStructure: 'year', defaultBleed: 3, defaultMargins: 6, proofResolution: 150, okPdfResolution: 300, autoSaveProof: true, openPdfAfterExport: true };
+  }
 
   overlay.style.display = 'flex';
   overlay.innerHTML = `
