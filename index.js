@@ -352,6 +352,7 @@ function renderJobList(searchQuery) {
               <button class="btn btn-amber btn-sm export-proof-btn" data-job-id="${job.id}" data-job-number="${job.job_number}">Export Proof</button>
               <button class="btn btn-green btn-sm export-ok-btn" data-job-id="${job.id}" data-job-number="${job.job_number}">Export OK PDF</button>
               <button class="btn btn-secondary btn-sm upload-btn" data-job-id="${job.id}" data-job-number="${job.job_number}">Upload File</button>
+              <button class="btn btn-secondary btn-sm close-job-btn" data-job-id="${job.id}" style="color:var(--text-dim);">Close</button>
             </div>
           </div>
         `;
@@ -432,6 +433,18 @@ function renderJobList(searchQuery) {
     listEl.querySelectorAll('.upload-btn').forEach(btn => {
       btn.addEventListener('click', (e) => { e.stopPropagation(); handleUploadFile(btn.dataset.jobId, btn.dataset.jobNumber); });
     });
+    listEl.querySelectorAll('.close-job-btn').forEach(btn => {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        currentJobId = null;
+        currentCustomerId = null;
+        var assetsSection = document.getElementById('assets-section');
+        if (assetsSection) assetsSection.style.display = 'none';
+        var searchEl = document.getElementById('job-search');
+        renderJobList(searchEl ? searchEl.value.toLowerCase() || undefined : undefined);
+        showStatus('Job closed');
+      });
+    });
 }
 
 // ── Create Document ──
@@ -506,9 +519,19 @@ async function handleCreateDocument(jobId) {
         targetFolder = await fs.getFolder();
       }
       if (targetFolder) {
-        const file = await targetFolder.createFile(`${docName}.indd`, { overwrite: true });
-        doc.save(file);
-        workflow.saveLocalFilePath(jobId, file.nativePath, 'indesign').catch(() => {});
+        // Check if file already exists before creating — don't overwrite
+        var existingEntry = null;
+        try { existingEntry = await targetFolder.getEntry(docName + '.indd'); } catch (e) {}
+        if (existingEntry) {
+          // File exists — open it instead of overwriting
+          try { indesign.open(existingEntry); } catch (e) {}
+          showStatus('Opened existing: ' + job.job_number);
+          workflow.saveLocalFilePath(jobId, existingEntry.nativePath, 'indesign').catch(function() {});
+        } else {
+          var file = await targetFolder.createFile(docName + '.indd', { overwrite: false });
+          doc.save(file);
+          workflow.saveLocalFilePath(jobId, file.nativePath, 'indesign').catch(function() {});
+        }
       }
     } catch (saveErr) {
       // Save is nice-to-have — document is still open and usable

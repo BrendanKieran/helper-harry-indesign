@@ -30,6 +30,9 @@ async function placeImage(doc, imageUrl, imageName) {
 
   frame.place(tempFile.nativePath);
 
+  // No stroke on placed frames
+  try { frame.strokeWeight = 0; } catch (e) {}
+
   // Fit proportionally
   try {
     frame.fit(FitOptions.PROPORTIONALLY);
