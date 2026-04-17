@@ -74,17 +74,40 @@ Coming soon — the plugin will be distributed via Adobe Exchange for one-click 
 
 On first launch, log in with your Helper Harry email and password. The plugin stores your session securely.
 
-### Preferences (stored locally)
+### Settings panel
+
+Click the **gear icon ⚙** in the Helper Harry panel header to open Settings. All preferences are saved locally and persist across InDesign restarts.
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| Working Folder | — | Where job folders are created |
-| Folder Structure | year | year / flat / customer-based folder naming |
+| Working Folder | — | Where job folders + exported PDFs are saved (see below) |
+| Folder Structure | By Year | How subfolders are organised (see below) |
 | Default Bleed | 3mm | Applied to new documents |
 | Default Margins | 6mm | Applied to new documents |
-| Auto Upload Proof | true | Upload proof PDF to HH after export |
-| Proof Resolution | 150 DPI | Quality for proof exports |
-| OK PDF Resolution | 300 DPI | Quality for press-ready exports |
+| Proof Resolution | 150 DPI | Quality for proof PDF exports |
+| OK PDF Resolution | 300 DPI | Quality for press-ready PDF exports |
+| Auto Upload Proof | On | Upload proof PDF to Helper Harry after export |
+| Open PDF After Export | On | Open the exported PDF in your default viewer |
+| API URL | app.helperharry.com/api | Only change for self-hosted instances |
+
+### Working Folder
+
+Click **Browse** and pick the folder where you want everything to land (e.g. `D:\Print Jobs\` on Windows or `/Users/designer/Print Jobs/` on Mac).
+
+Once set, the plugin:
+- **Auto-saves new documents** there, named after the job — e.g. `JOB-65734 Business Cards.indd`
+- **Exports proof and OK PDFs** there without prompting for a folder each time
+- **Remembers the folder** across InDesign restarts (no need to re-set after a reboot)
+
+### Folder Structure
+
+Controls how subfolders are created inside the working folder:
+
+| Option | Example path |
+|--------|-------------|
+| **By Year** | `2026/JOB-65734/JOB-65734-proof.pdf` |
+| **By Customer** | `Acme Ltd/JOB-65734/JOB-65734-proof.pdf` |
+| **Flat** | `JOB-65734/JOB-65734-proof.pdf` (directly in working folder) |
 
 ---
 
