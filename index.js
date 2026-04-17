@@ -19,9 +19,39 @@ let currentCustomerId = null;
 let jobCache = {}; // cache job numbers for export
 
 // Expose key functions globally so onclick attributes work in UXP
-// (module-scoped functions aren't on the window object by default)
 if (typeof window !== 'undefined') {
   window.showSettings = function() { showSettings(); };
+}
+
+// Get or create a job subfolder under the working folder, respecting
+// the folder structure setting (year / customer / flat).
+async function getJobFolder(workingFolder, prefs, jobNumber, customerName) {
+  if (!workingFolder) return null;
+  try {
+    var structure = prefs.folderStructure || 'year';
+    var parentFolder = workingFolder;
+
+    if (structure === 'year') {
+      var year = String(new Date().getFullYear());
+      try { parentFolder = await workingFolder.getEntry(year); }
+      catch (e) { parentFolder = await workingFolder.createFolder(year); }
+    } else if (structure === 'customer' && customerName) {
+      var safeName = customerName.replace(/[/\\:*?"<>|]/g, '').substring(0, 50).trim();
+      if (safeName) {
+        try { parentFolder = await workingFolder.getEntry(safeName); }
+        catch (e) { parentFolder = await workingFolder.createFolder(safeName); }
+      }
+    }
+    // flat = use workingFolder directly
+
+    // Job subfolder
+    var jobFolder;
+    try { jobFolder = await parentFolder.getEntry(jobNumber); }
+    catch (e) { jobFolder = await parentFolder.createFolder(jobNumber); }
+    return jobFolder;
+  } catch (e) {
+    return workingFolder; // fallback to root working folder
+  }
 }
 
 // ── Render the UI ──
@@ -303,19 +333,22 @@ async function handleCreateDocument(jobId) {
       title: job.description || ''
     }, prefs);
 
-    // Auto-save with job-based filename so the document isn't "Untitled".
-    // Uses the configured working folder (via persistent token); falls back to a folder pick.
+    // Auto-save with job-based filename into the structured folder.
     try {
       const docName = `${job.job_number} ${(job.description || custName).substring(0, 40).replace(/[/\\:*?"<>|]/g, '')}`.trim();
-      let targetFolder;
+      let workingFolder = null;
       if (prefs.workingFolderToken) {
-        targetFolder = await getFolderFromToken(prefs.workingFolderToken).catch(() => null);
+        workingFolder = await getFolderFromToken(prefs.workingFolderToken).catch(() => null);
       }
-      if (!targetFolder) targetFolder = await fs.getFolder();
+      let targetFolder;
+      if (workingFolder) {
+        targetFolder = await getJobFolder(workingFolder, prefs, job.job_number, custName);
+      } else {
+        targetFolder = await fs.getFolder();
+      }
       if (targetFolder) {
         const file = await targetFolder.createFile(`${docName}.indd`, { overwrite: true });
         doc.save(file);
-        // Remember the local path on HH so the plugin can re-open it later
         workflow.saveLocalFilePath(jobId, file.nativePath, 'indesign').catch(() => {});
       }
     } catch (saveErr) {
@@ -472,7 +505,11 @@ async function handleExportProof(jobId, jobNumber) {
     const prefs = await getPrefs();
     let outputFolder = null;
     if (prefs.workingFolderToken) {
-      try { outputFolder = await getFolderFromToken(prefs.workingFolderToken); } catch (e) {}
+      try {
+        var wf = await getFolderFromToken(prefs.workingFolderToken);
+        var custName = (jobCache[jobId] && (jobCache[jobId].customer_company || jobCache[jobId].customer_first_name)) || '';
+        outputFolder = await getJobFolder(wf, prefs, jobNumber, custName);
+      } catch (e) {}
     }
     showStatus(outputFolder ? 'Exporting proof...' : 'Select folder for proof PDF...');
     const filename = `${jobNumber}-proof.pdf`;
@@ -516,7 +553,11 @@ async function handleExportOkPdf(jobId, jobNumber) {
     const prefs = await getPrefs();
     let outputFolder = null;
     if (prefs.workingFolderToken) {
-      try { outputFolder = await getFolderFromToken(prefs.workingFolderToken); } catch (e) {}
+      try {
+        var wf = await getFolderFromToken(prefs.workingFolderToken);
+        var custName = (jobCache[jobId] && (jobCache[jobId].customer_company || jobCache[jobId].customer_first_name)) || '';
+        outputFolder = await getJobFolder(wf, prefs, jobNumber, custName);
+      } catch (e) {}
     }
     showStatus(outputFolder ? 'Exporting press-ready PDF...' : 'Select folder for press-ready PDF...');
     const filename = `${jobNumber}-OK.pdf`;

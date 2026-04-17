@@ -70,9 +70,16 @@ class WorkflowAPI {
     const mimeType = mimeTypes[ext] || 'application/octet-stream';
 
     const formData = new FormData();
-    const blob = new Blob([fileBuffer], { type: mimeType });
-    // In UXP, append with explicit filename as third argument
-    formData.append('file', blob, filename || 'upload.pdf');
+    // Use File (not Blob) so the filename propagates in the multipart
+    // Content-Disposition header. UXP's Blob ignores the 3rd arg to append.
+    var file;
+    try {
+      file = new File([fileBuffer], filename || 'upload.pdf', { type: mimeType });
+    } catch (e) {
+      // Fallback if File constructor isn't available
+      file = new Blob([fileBuffer], { type: mimeType });
+    }
+    formData.append('file', file, filename || 'upload.pdf');
     formData.append('fileCategory', category);
     formData.append('notes', 'From InDesign plugin');
 
