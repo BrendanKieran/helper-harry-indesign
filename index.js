@@ -172,9 +172,13 @@ async function renderMain(root) {
 
   document.getElementById('logout-btn').addEventListener('click', async () => { await auth.logout(); renderLogin(root); });
   document.getElementById('refresh-btn').addEventListener('click', () => loadJobs());
+  var searchTimer = null;
   document.getElementById('job-search').addEventListener('input', function() {
-    var q = this.value.toLowerCase();
-    renderJobList(q);
+    var input = this;
+    if (searchTimer) clearTimeout(searchTimer);
+    searchTimer = setTimeout(function() {
+      renderJobList(input.value.toLowerCase() || undefined);
+    }, 300);
   });
   document.getElementById('settings-btn').addEventListener('click', function() {
     var overlay = document.getElementById('settings-overlay');
