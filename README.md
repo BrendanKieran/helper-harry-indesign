@@ -21,22 +21,18 @@ UXP plugin for Adobe InDesign that connects to Helper Harry's print shop workflo
 
 ## Installation
 
-### 1. Plugin
+### 1. Plugin (via UXP Developer Tool)
 
-**Recommended — install from .ccx:**
+1. Download `helper-harry-indesign-v1.0.0.zip` from [dist/](./dist/) and extract it.
+2. Install the free **UXP Developer Tool** from the Creative Cloud desktop app (search "UXP Developer Tool" in Apps and click Install).
+3. Open **InDesign** (must be running).
+4. Open the **UXP Developer Tool**.
+5. Click **"Add Plugin"** → navigate to the extracted folder → select **`manifest.json`**.
+6. Click **"Load"** — the plugin sideloads into InDesign.
+7. In InDesign: **Window → Helper Harry** to open the panel.
+8. Sign in with your Helper Harry credentials on first launch.
 
-1. Download the latest `.ccx` from [dist/](./dist/)
-2. Double-click the `.ccx` file. The Adobe Creative Cloud desktop app will open and offer to install.
-3. Click **Install**. InDesign installs the plugin automatically.
-4. Relaunch InDesign → Window → **Helper Harry** to show the panel.
-5. Sign in with your Helper Harry credentials on first launch.
-
-**Alternative — development sideload:**
-
-1. Open InDesign
-2. Go to **Plugins → Development → Show Plugin Folder**
-3. Clone or copy the plugin source folder into the plugins folder
-4. Restart InDesign → Window → Helper Harry
+The plugin stays loaded across sessions until you explicitly remove it from the Developer Tool. This is the standard in-house distribution path for UXP plugins — no Adobe Developer certificate needed.
 
 ### 2. Print PDF Preset(s)
 
