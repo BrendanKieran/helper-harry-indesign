@@ -23,8 +23,8 @@ async function exportProofPdf(doc, outputFolder, filename) {
   app.pdfExportPreferences.grayscaleBitmapSampling = Sampling.BICUBIC_DOWNSAMPLE;
   app.pdfExportPreferences.grayscaleBitmapSamplingDPI = 150;
 
-  // Use UXP file system to create the output file
-  const folder = await localFS.getFolder();
+  // Use configured working folder if available; fall back to a picker
+  const folder = outputFolder || await localFS.getFolder();
   if (!folder) throw new Error('No folder selected');
   const file = await folder.createFile(filename, { overwrite: true });
   doc.exportFile(ExportFormat.PDF_TYPE, file.nativePath, false);
@@ -54,8 +54,8 @@ async function exportOkPdf(doc, outputFolder, filename, bleedMM = 3) {
   app.pdfExportPreferences.grayscaleBitmapSamplingDPI = 300;
   app.pdfExportPreferences.grayscaleBitmapQuality = CompressionQuality.MAXIMUM;
 
-  // Use UXP file system
-  const folder = await localFS.getFolder();
+  // Use configured working folder if available; fall back to a picker
+  const folder = outputFolder || await localFS.getFolder();
   if (!folder) throw new Error('No folder selected');
   const file = await folder.createFile(filename, { overwrite: true });
   doc.exportFile(ExportFormat.PDF_TYPE, file.nativePath, false);

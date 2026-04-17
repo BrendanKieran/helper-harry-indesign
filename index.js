@@ -205,7 +205,7 @@ async function handleCreateDocument(jobId) {
 
     const facingPages = pageCount >= 4;
 
-    createDocument({
+    const doc = createDocument({
       widthMM, heightMM, pageCount, facingPages,
       bleedMM: prefs.defaultBleed,
       marginMM: prefs.defaultMargins,
@@ -213,6 +213,25 @@ async function handleCreateDocument(jobId) {
       customerName: custName,
       title: job.description || ''
     }, prefs);
+
+    // Auto-save with job-based filename so the document isn't "Untitled".
+    // Uses the configured working folder; falls back to a user folder pick.
+    try {
+      const docName = `${job.job_number} ${(job.description || custName).substring(0, 40).replace(/[/\\:*?"<>|]/g, '')}`.trim();
+      let targetFolder;
+      if (prefs.workingFolder) {
+        targetFolder = await fs.getEntryForPersistentToken(prefs.workingFolder).catch(() => null);
+      }
+      if (!targetFolder) targetFolder = await fs.getFolder();
+      if (targetFolder) {
+        const file = await targetFolder.createFile(`${docName}.indd`, { overwrite: true });
+        doc.save(file);
+        // Remember the local path on HH so the plugin can re-open it later
+        workflow.saveLocalFilePath(jobId, file.nativePath, 'indesign').catch(() => {});
+      }
+    } catch (saveErr) {
+      // Save is nice-to-have — document is still open and usable
+    }
 
     showStatus(`Document created: ${job.job_number}`);
 
@@ -390,22 +409,37 @@ async function handleExportProof(jobId, jobNumber) {
     const doc = indesign.activeDocument;
     if (!doc) { showError('No document open in InDesign'); return; }
 
-    showStatus('Select folder for proof PDF...');
+    const prefs = await getPrefs();
+    let outputFolder = null;
+    if (prefs.workingFolder) {
+      try { outputFolder = await fs.getEntryForPersistentToken(prefs.workingFolder); } catch (e) {}
+    }
+    showStatus(outputFolder ? 'Exporting proof...' : 'Select folder for proof PDF...');
     const filename = `${jobNumber}-proof.pdf`;
-    const outputPath = await exportProofPdf(doc, null, filename);
+    const outputPath = await exportProofPdf(doc, outputFolder, filename);
 
     showStatus('Proof exported! Uploading to Helper Harry...');
     try {
-      const file = await fs.getFileForOpening(outputPath);
-      if (file) {
-        const buffer = await file.read({ format: uxpStorage.formats.binary });
+      // Read the file we just exported directly — no interactive picker
+      const entry = await fs.getEntryForPersistentToken(outputPath).catch(() => null)
+        || await fs.createSessionToken(outputPath).catch(() => null);
+      let buffer;
+      if (entry && entry.read) {
+        buffer = await entry.read({ format: uxpStorage.formats.binary });
+      } else {
+        // Fallback: try reading via the path the export function returned
+        const uxpFile = require('uxp').storage;
+        const fileEntry = await uxpFile.localFileSystem.getFileForOpening({ initialLocation: outputPath });
+        if (fileEntry) buffer = await fileEntry.read({ format: uxpFile.formats.binary });
+      }
+      if (buffer) {
         await workflow.uploadJobFile(jobId, buffer, filename, 'proof');
         showStatus('Proof uploaded to Helper Harry!');
       } else {
-        showStatus('Proof saved locally');
+        showStatus('Proof saved locally (could not read file for upload)');
       }
     } catch (uploadErr) {
-      showStatus('Proof saved locally (upload skipped)');
+      showStatus(`Proof saved locally (upload: ${uploadErr.message || 'skipped'})`);
     }
   } catch (err) {
     showError(`Export failed: ${err.message}`);
@@ -419,23 +453,35 @@ async function handleExportOkPdf(jobId, jobNumber) {
     const doc = indesign.activeDocument;
     if (!doc) { showError('No document open in InDesign'); return; }
 
-    showStatus('Select folder for press-ready PDF...');
     const prefs = await getPrefs();
+    let outputFolder = null;
+    if (prefs.workingFolder) {
+      try { outputFolder = await fs.getEntryForPersistentToken(prefs.workingFolder); } catch (e) {}
+    }
+    showStatus(outputFolder ? 'Exporting press-ready PDF...' : 'Select folder for press-ready PDF...');
     const filename = `${jobNumber}-OK.pdf`;
-    const outputPath = await exportOkPdf(doc, null, filename, prefs.defaultBleed);
+    const outputPath = await exportOkPdf(doc, outputFolder, filename, prefs.defaultBleed);
 
     showStatus('PDF exported! Uploading to Helper Harry...');
     try {
-      const file = await fs.getFileForOpening(outputPath);
-      if (file) {
-        const buffer = await file.read({ format: uxpStorage.formats.binary });
+      const entry = await fs.getEntryForPersistentToken(outputPath).catch(() => null)
+        || await fs.createSessionToken(outputPath).catch(() => null);
+      let buffer;
+      if (entry && entry.read) {
+        buffer = await entry.read({ format: uxpStorage.formats.binary });
+      } else {
+        const uxpFile = require('uxp').storage;
+        const fileEntry = await uxpFile.localFileSystem.getFileForOpening({ initialLocation: outputPath });
+        if (fileEntry) buffer = await fileEntry.read({ format: uxpFile.formats.binary });
+      }
+      if (buffer) {
         await workflow.uploadJobFile(jobId, buffer, filename, 'print_ready');
         showStatus('Press-ready PDF uploaded!');
       } else {
-        showStatus('PDF saved locally');
+        showStatus('PDF saved locally (could not read file for upload)');
       }
     } catch (uploadErr) {
-      showStatus('PDF saved locally (upload skipped)');
+      showStatus(`PDF saved locally (upload: ${uploadErr.message || 'skipped'})`);
     }
   } catch (err) {
     showError(`Export failed: ${err.message}`);
