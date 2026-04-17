@@ -483,59 +483,58 @@ async function handleCreateDocument(jobId) {
       // No saved path — continue to create new
     }
 
-    let widthMM = 210, heightMM = 297, pageCount = 1;
-    const custName = job.customer_company || job.customer_first_name || 'Customer';
+    var custName = job.customer_company || job.customer_first_name || 'Customer';
+    var jobInfo = { job_number: job.job_number, customer_company: custName, customer_code: job.customer_code || '', description: job.description || '', job_type_name: job.job_type_name || '' };
+    var docName = [job.job_number, custName, (job.description || '').substring(0, 40)].filter(Boolean).join(' ').replace(/[/\\:*?"<>|]/g, '').trim();
 
+    // Check working folder for an existing .indd BEFORE creating a new doc
+    var workingFolder = null;
+    if (prefs.workingFolderToken) {
+      workingFolder = await getFolderFromToken(prefs.workingFolderToken).catch(function() { return null; });
+    }
+    if (workingFolder) {
+      try {
+        var targetFolder = await getJobFolder(workingFolder, prefs, jobInfo);
+        if (targetFolder) {
+          var existingEntry = null;
+          try { existingEntry = await targetFolder.getEntry(docName + '.indd'); } catch (e) {}
+          if (existingEntry) {
+            indesign.open(existingEntry);
+            showStatus('Opened: ' + job.job_number);
+            workflow.saveLocalFilePath(jobId, existingEntry.nativePath, 'indesign').catch(function() {});
+            var searchEl2 = document.getElementById('job-search');
+            renderJobList(searchEl2 ? searchEl2.value.toLowerCase() || undefined : undefined);
+            if (job.customer_id) loadCustomerAssets(job.customer_id);
+            return;
+          }
+        }
+      } catch (e) {}
+    }
+
+    // No existing file found anywhere — create a new document
+    var widthMM = 210, heightMM = 297, pageCount = 1;
     if (job.production_specs && job.production_specs[0]) {
-      const s = job.production_specs[0];
+      var s = job.production_specs[0];
       if (s.custom_width_mm > 0) widthMM = s.custom_width_mm;
       if (s.custom_height_mm > 0) heightMM = s.custom_height_mm;
       if (s.sheets_per_item > 1) pageCount = s.sheets_per_item;
     }
-
-    const facingPages = pageCount >= 4;
-
-    const doc = createDocument({
-      widthMM, heightMM, pageCount, facingPages,
-      bleedMM: prefs.defaultBleed,
-      marginMM: prefs.defaultMargins,
-      jobNumber: job.job_number,
-      customerName: custName,
-      title: job.description || ''
+    var facingPages = pageCount >= 4;
+    var doc = createDocument({
+      widthMM: widthMM, heightMM: heightMM, pageCount: pageCount, facingPages: facingPages,
+      bleedMM: prefs.defaultBleed, marginMM: prefs.defaultMargins,
+      jobNumber: job.job_number, customerName: custName, title: job.description || ''
     }, prefs);
 
-    // Auto-save with job-based filename into the structured folder.
+    // Save the new doc to the structured folder
     try {
-      const jobInfo = { job_number: job.job_number, customer_company: custName, customer_code: job.customer_code || '', description: job.description || '', job_type_name: job.job_type_name || '' };
-      const docName = [job.job_number, custName, (job.description || '').substring(0, 40)].filter(Boolean).join(' ').replace(/[/\\:*?"<>|]/g, '').trim();
-      let workingFolder = null;
-      if (prefs.workingFolderToken) {
-        workingFolder = await getFolderFromToken(prefs.workingFolderToken).catch(() => null);
+      var saveFolder = workingFolder ? await getJobFolder(workingFolder, prefs, jobInfo) : await fs.getFolder();
+      if (saveFolder) {
+        var file = await saveFolder.createFile(docName + '.indd', { overwrite: false });
+        doc.save(file);
+        workflow.saveLocalFilePath(jobId, file.nativePath, 'indesign').catch(function() {});
       }
-      let targetFolder;
-      if (workingFolder) {
-        targetFolder = await getJobFolder(workingFolder, prefs, jobInfo);
-      } else {
-        targetFolder = await fs.getFolder();
-      }
-      if (targetFolder) {
-        // Check if file already exists before creating — don't overwrite
-        var existingEntry = null;
-        try { existingEntry = await targetFolder.getEntry(docName + '.indd'); } catch (e) {}
-        if (existingEntry) {
-          // File exists — open it instead of overwriting
-          try { indesign.open(existingEntry); } catch (e) {}
-          showStatus('Opened existing: ' + job.job_number);
-          workflow.saveLocalFilePath(jobId, existingEntry.nativePath, 'indesign').catch(function() {});
-        } else {
-          var file = await targetFolder.createFile(docName + '.indd', { overwrite: false });
-          doc.save(file);
-          workflow.saveLocalFilePath(jobId, file.nativePath, 'indesign').catch(function() {});
-        }
-      }
-    } catch (saveErr) {
-      // Save is nice-to-have — document is still open and usable
-    }
+    } catch (saveErr) {}
 
     showStatus('Document created: ' + job.job_number);
 
