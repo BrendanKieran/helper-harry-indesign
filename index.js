@@ -88,8 +88,12 @@ function buildFilename(jobInfo, status) {
     safe((jobInfo.description || '').substring(0, 50))
   ];
   if (jobInfo.job_type_name) parts.push('- ' + safe(jobInfo.job_type_name));
-  parts.push(status);
-  return parts.filter(Boolean).join(' ').substring(0, 150).trim() + '.pdf';
+  // Append date + time so repeat exports don't produce identical filenames
+  var now = new Date();
+  var dateStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+  var timeStr = String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0');
+  parts.push(status + ' ' + dateStr + ' ' + timeStr);
+  return parts.filter(Boolean).join(' ').substring(0, 180).trim() + '.pdf';
 }
 
 // ── Render the UI ──
