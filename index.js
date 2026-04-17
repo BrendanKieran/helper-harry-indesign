@@ -30,27 +30,36 @@ async function getJobFolder(workingFolder, prefs, jobNumber, customerName) {
   try {
     var structure = prefs.folderStructure || 'year';
     var parentFolder = workingFolder;
+    var safeCust = (customerName || '').replace(/[/\\:*?"<>|]/g, '').substring(0, 50).trim();
+    var year = String(new Date().getFullYear());
 
     if (structure === 'year') {
-      var year = String(new Date().getFullYear());
+      // 2026/JOB-1234/
       try { parentFolder = await workingFolder.getEntry(year); }
       catch (e) { parentFolder = await workingFolder.createFolder(year); }
-    } else if (structure === 'customer' && customerName) {
-      var safeName = customerName.replace(/[/\\:*?"<>|]/g, '').substring(0, 50).trim();
-      if (safeName) {
-        try { parentFolder = await workingFolder.getEntry(safeName); }
-        catch (e) { parentFolder = await workingFolder.createFolder(safeName); }
-      }
+    } else if (structure === 'customer' && safeCust) {
+      // Customer Name/JOB-1234/
+      try { parentFolder = await workingFolder.getEntry(safeCust); }
+      catch (e) { parentFolder = await workingFolder.createFolder(safeCust); }
+    } else if (structure === 'yearCustomer' && safeCust) {
+      // 2026 Jobs/Customer Name - JOB-1234/  (Factory's preferred layout)
+      var yearFolder;
+      var yearLabel = year + ' Jobs';
+      try { yearFolder = await workingFolder.getEntry(yearLabel); }
+      catch (e) { yearFolder = await workingFolder.createFolder(yearLabel); }
+      var custJobName = safeCust + ' - ' + jobNumber;
+      try { return await yearFolder.getEntry(custJobName); }
+      catch (e) { return await yearFolder.createFolder(custJobName); }
     }
     // flat = use workingFolder directly
 
-    // Job subfolder
+    // Job subfolder (for year / customer / flat)
     var jobFolder;
     try { jobFolder = await parentFolder.getEntry(jobNumber); }
     catch (e) { jobFolder = await parentFolder.createFolder(jobNumber); }
     return jobFolder;
   } catch (e) {
-    return workingFolder; // fallback to root working folder
+    return workingFolder;
   }
 }
 
@@ -115,6 +124,7 @@ async function renderMain(root) {
     </div>
 
     <div class="section-title">MY JOBS <button id="refresh-btn" class="btn btn-secondary btn-sm" style="float: right;">Refresh</button></div>
+    <div style="margin-bottom:6px"><input id="job-search" class="input" placeholder="Search jobs..." style="font-size:11px;padding:4px 8px" /></div>
     <div id="job-list"><div class="empty"><span class="spinner"></span> Loading jobs...</div></div>
 
     <div id="assets-section" style="display: none;">
@@ -129,6 +139,10 @@ async function renderMain(root) {
 
   document.getElementById('logout-btn').addEventListener('click', async () => { await auth.logout(); renderLogin(root); });
   document.getElementById('refresh-btn').addEventListener('click', () => loadJobs());
+  document.getElementById('job-search').addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    renderJobList(q);
+  });
   document.getElementById('settings-btn').addEventListener('click', function() {
     var overlay = document.getElementById('settings-overlay');
     var html = '<div class="settings-panel">';
@@ -136,8 +150,9 @@ async function renderMain(root) {
     html += '<div class="field"><label class="label">Working Folder</label>';
     html += '<div style="display:flex;gap:4px"><input id="pref-folder" class="input input-sm" value="" placeholder="Click Browse" readonly style="flex:1" />';
     html += '<button id="browse-folder-btn" class="btn btn-secondary btn-sm">Browse</button></div></div>';
-    html += '<div class="field"><label class="label">Folder Structure (year / customer / flat)</label>';
-    html += '<input id="pref-folder-structure" class="input input-sm" value="year" /></div>';
+    html += '<div class="field"><label class="label">Folder Structure</label>';
+    html += '<input id="pref-folder-structure" class="input input-sm" value="year" />';
+    html += '<div style="font-size:10px;color:var(--text-dim);margin-top:2px">year = 2026/JOB-1234/<br>customer = Acme/JOB-1234/<br>yearCustomer = 2026 Jobs/Acme - JOB-1234/<br>flat = JOB-1234/</div></div>';
     html += '<div class="field"><label class="label">Default Bleed (mm)</label>';
     html += '<input id="pref-bleed" class="input input-sm" type="number" value="3" /></div>';
     html += '<div class="field"><label class="label">Default Margins (mm)</label>';
@@ -219,19 +234,38 @@ async function renderMain(root) {
 
 // ── Load Jobs ──
 
+var allJobsCache = [];
+
 async function loadJobs() {
   const listEl = document.getElementById('job-list');
   try {
     const data = await workflow.getMyJobs();
-    const allJobs = [...(data.urgent || []), ...(data.thisWeek || []), ...(data.later || [])];
+    allJobsCache = [...(data.urgent || []), ...(data.thisWeek || []), ...(data.later || [])];
+    allJobsCache.forEach(j => { jobCache[j.id] = j; });
+    renderJobList();
+  } catch (err) {
+    listEl.innerHTML = '<div class="msg msg-error">' + err.message + '</div>';
+  }
+}
 
-    if (allJobs.length === 0) {
-      listEl.innerHTML = '<div class="empty">No jobs assigned to you</div>';
-      return;
-    }
+function renderJobList(searchQuery) {
+  var listEl = document.getElementById('job-list');
+  var allJobs = allJobsCache;
 
-    // Cache job data
-    allJobs.forEach(j => { jobCache[j.id] = j; });
+  if (searchQuery) {
+    var q = searchQuery.toLowerCase();
+    allJobs = allJobs.filter(function(job) {
+      var custName = (job.customer_company || job.customer_first_name || '').toLowerCase();
+      var desc = (job.description || '').toLowerCase();
+      var num = (job.job_number || '').toLowerCase();
+      return custName.indexOf(q) >= 0 || desc.indexOf(q) >= 0 || num.indexOf(q) >= 0;
+    });
+  }
+
+  if (allJobs.length === 0) {
+    listEl.innerHTML = '<div class="empty">' + (searchQuery ? 'No matching jobs' : 'No jobs assigned to you') + '</div>';
+    return;
+  }
 
     listEl.innerHTML = allJobs.map(job => {
       const custName = job.customer_company || job.customer_first_name || '';
@@ -295,10 +329,6 @@ async function loadJobs() {
     listEl.querySelectorAll('.upload-btn').forEach(btn => {
       btn.addEventListener('click', (e) => { e.stopPropagation(); handleUploadFile(btn.dataset.jobId, btn.dataset.jobNumber); });
     });
-
-  } catch (err) {
-    listEl.innerHTML = `<div class="msg msg-error">${err.message}</div>`;
-  }
 }
 
 // ── Create Document ──

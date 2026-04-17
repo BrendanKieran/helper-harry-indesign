@@ -82,6 +82,9 @@ class WorkflowAPI {
     formData.append('file', file, filename || 'upload.pdf');
     formData.append('fileCategory', category);
     formData.append('notes', 'From InDesign plugin');
+    // UXP's FormData may not send the filename in Content-Disposition,
+    // so we send it as a separate field for the server to use as fallback
+    formData.append('originalFilename', filename || 'upload.pdf');
 
     const res = await fetch(`${prefs.apiUrl}/workflow/jobs/${jobId}/files`, {
       method: 'POST',
