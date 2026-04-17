@@ -99,15 +99,14 @@ async function renderMain(root) {
 
   document.getElementById('logout-btn').addEventListener('click', async () => { await auth.logout(); renderLogin(root); });
   document.getElementById('refresh-btn').addEventListener('click', () => loadJobs());
-  // UXP quirk: addEventListener on innerHTML-created elements can be
-  // unreliable. Use event delegation on the root instead — a single
-  // click handler that checks the target's id. This always works
-  // because the root element exists before innerHTML is assigned.
-  root.addEventListener('click', function(e) {
-    const btn = e.target.closest('#settings-btn');
-    if (btn) {
-      showSettings().catch(function(err) { showError('Settings: ' + err.message); });
-    }
+  document.getElementById('settings-btn').addEventListener('click', function() {
+    // Phase 1: test if click fires at all
+    var overlay = document.getElementById('settings-overlay');
+    overlay.innerHTML = '<div class="settings-panel"><h2>Settings</h2><p style="color:var(--text);">Click worked! Full settings panel loading...</p><button id="settings-close" class="btn btn-secondary btn-sm" style="margin-top:12px;">Close</button></div>';
+    overlay.style.display = 'flex';
+    document.getElementById('settings-close').addEventListener('click', function() { overlay.style.display = 'none'; });
+    // Phase 2: load real settings after confirming click works
+    showSettings().catch(function(err) { overlay.innerHTML = '<div class="settings-panel"><h2>Error</h2><p style="color:var(--red);">' + err.message + '</p><button id="settings-close2" class="btn btn-secondary btn-sm" style="margin-top:8px;">Close</button></div>'; document.getElementById('settings-close2').addEventListener('click', function() { overlay.style.display = 'none'; }); });
   });
 
   loadJobs();
