@@ -72,7 +72,10 @@ async function renderMain(root) {
     <div class="header">
       <span class="header-logo">Helper Harry</span>
       <span class="header-user">${email.split('@')[0]}</span>
-      <button id="logout-btn" class="btn btn-secondary btn-sm" style="margin-left: auto;">Logout</button>
+      <span style="margin-left: auto; display: flex; gap: 4px; align-items: center;">
+        <button id="settings-btn" class="gear-btn" title="Settings">&#9881;</button>
+        <button id="logout-btn" class="btn btn-secondary btn-sm">Logout</button>
+      </span>
     </div>
 
     <div class="section-title">MY JOBS <button id="refresh-btn" class="btn btn-secondary btn-sm" style="float: right;">Refresh</button></div>
@@ -85,10 +88,12 @@ async function renderMain(root) {
     </div>
 
     <div id="status-msg" class="msg msg-success" style="display: none;"></div>
+    <div id="settings-overlay" class="settings-overlay" style="display: none;"></div>
   `;
 
   document.getElementById('logout-btn').addEventListener('click', async () => { await auth.logout(); renderLogin(root); });
   document.getElementById('refresh-btn').addEventListener('click', () => loadJobs());
+  document.getElementById('settings-btn').addEventListener('click', () => showSettings());
 
   loadJobs();
 }
@@ -259,6 +264,123 @@ async function handleOpenDocument(jobId) {
     loadJobs();
     showError(`Open failed: ${err.message}`);
   }
+}
+
+// ── Settings Panel ──
+
+async function showSettings() {
+  const overlay = document.getElementById('settings-overlay');
+  const prefs = await getPrefs();
+
+  overlay.style.display = 'flex';
+  overlay.innerHTML = `
+    <div class="settings-panel">
+      <h2>&#9881; Settings</h2>
+
+      <div class="field">
+        <label class="label">Working Folder</label>
+        <div style="display: flex; gap: 4px;">
+          <input id="pref-folder" class="input input-sm" value="${prefs.workingFolder || ''}" placeholder="Not set — click Browse" readonly style="flex: 1;" />
+          <button id="browse-folder-btn" class="btn btn-secondary btn-sm">Browse</button>
+        </div>
+        <div style="font-size: 10px; color: var(--text-dim); margin-top: 2px;">Where job folders are created on this machine</div>
+      </div>
+
+      <div class="field">
+        <label class="label">Folder Structure</label>
+        <select id="pref-folder-structure" class="input input-sm">
+          <option value="year" ${prefs.folderStructure === 'year' ? 'selected' : ''}>By Year (2026/JOB-001/)</option>
+          <option value="customer" ${prefs.folderStructure === 'customer' ? 'selected' : ''}>By Customer (Acme/JOB-001/)</option>
+          <option value="flat" ${prefs.folderStructure === 'flat' ? 'selected' : ''}>Flat (JOB-001/)</option>
+        </select>
+      </div>
+
+      <div class="settings-row">
+        <div class="field">
+          <label class="label">Default Bleed (mm)</label>
+          <input id="pref-bleed" class="input input-sm" type="number" value="${prefs.defaultBleed}" min="0" max="25" step="0.5" />
+        </div>
+        <div class="field">
+          <label class="label">Default Margins (mm)</label>
+          <input id="pref-margins" class="input input-sm" type="number" value="${prefs.defaultMargins}" min="0" max="50" step="1" />
+        </div>
+      </div>
+
+      <div class="settings-row">
+        <div class="field">
+          <label class="label">Proof Resolution (DPI)</label>
+          <select id="pref-proof-dpi" class="input input-sm">
+            <option value="72" ${prefs.proofResolution === 72 ? 'selected' : ''}>72 (screen)</option>
+            <option value="150" ${prefs.proofResolution === 150 ? 'selected' : ''}>150 (standard)</option>
+            <option value="300" ${prefs.proofResolution === 300 ? 'selected' : ''}>300 (high)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="label">OK PDF Resolution (DPI)</label>
+          <select id="pref-ok-dpi" class="input input-sm">
+            <option value="150" ${prefs.okPdfResolution === 150 ? 'selected' : ''}>150</option>
+            <option value="300" ${prefs.okPdfResolution === 300 ? 'selected' : ''}>300 (standard)</option>
+            <option value="600" ${prefs.okPdfResolution === 600 ? 'selected' : ''}>600 (high)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 11px;">
+          <input id="pref-auto-upload" type="checkbox" ${prefs.autoSaveProof ? 'checked' : ''} />
+          Auto-upload proof PDF to Helper Harry after export
+        </label>
+      </div>
+
+      <div class="field">
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 11px;">
+          <input id="pref-open-pdf" type="checkbox" ${prefs.openPdfAfterExport ? 'checked' : ''} />
+          Open PDF after export
+        </label>
+      </div>
+
+      <div class="field">
+        <label class="label">API URL</label>
+        <input id="pref-api-url" class="input input-sm" value="${prefs.apiUrl}" placeholder="https://app.helperharry.com/api" />
+        <div style="font-size: 10px; color: var(--text-dim); margin-top: 2px;">Only change this if your shop runs a self-hosted instance</div>
+      </div>
+
+      <div class="settings-actions">
+        <button id="settings-cancel" class="btn btn-secondary btn-sm">Cancel</button>
+        <button id="settings-save" class="btn btn-primary btn-sm">Save</button>
+      </div>
+    </div>
+  `;
+
+  // Browse folder button
+  document.getElementById('browse-folder-btn').addEventListener('click', async () => {
+    try {
+      const folder = await fs.getFolder();
+      if (folder) document.getElementById('pref-folder').value = folder.nativePath;
+    } catch (e) { /* user cancelled */ }
+  });
+
+  document.getElementById('settings-cancel').addEventListener('click', () => {
+    overlay.style.display = 'none';
+  });
+
+  document.getElementById('settings-save').addEventListener('click', async () => {
+    const updated = {
+      ...prefs,
+      workingFolder: document.getElementById('pref-folder').value || '',
+      folderStructure: document.getElementById('pref-folder-structure').value,
+      defaultBleed: parseFloat(document.getElementById('pref-bleed').value) || 3,
+      defaultMargins: parseFloat(document.getElementById('pref-margins').value) || 6,
+      proofResolution: parseInt(document.getElementById('pref-proof-dpi').value) || 150,
+      okPdfResolution: parseInt(document.getElementById('pref-ok-dpi').value) || 300,
+      autoSaveProof: document.getElementById('pref-auto-upload').checked,
+      openPdfAfterExport: document.getElementById('pref-open-pdf').checked,
+      apiUrl: document.getElementById('pref-api-url').value.trim() || 'https://app.helperharry.com/api'
+    };
+    await savePrefs(updated);
+    overlay.style.display = 'none';
+    showStatus('Settings saved');
+  });
 }
 
 // ── Export Proof ──
