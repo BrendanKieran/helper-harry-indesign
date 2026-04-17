@@ -314,13 +314,31 @@ function renderJobList(searchQuery) {
       const isActive = currentJobId === job.id;
 
       if (isActive) {
-        // Active job: show export and upload actions
+        // Build progress states — use the detailed jobCache (has states from getJobDetails)
+        var detailedJob = jobCache[job.id] || job;
+        var states = detailedJob.states || [];
+        var progressStates = ['received', 'designed', 'proofed', 'approved'];
+        var stateHtml = '';
+        for (var si = 0; si < progressStates.length; si++) {
+          var sName = progressStates[si];
+          var state = states.find(function(s) { return s.state_name === sName; });
+          if (state) {
+            var checked = state.completed ? 'checked' : '';
+            var color = state.completed ? 'var(--green)' : 'var(--text-dim)';
+            stateHtml += '<label style="display:flex;align-items:center;gap:3px;font-size:10px;color:' + color + ';cursor:pointer;">';
+            stateHtml += '<input type="checkbox" class="state-toggle" data-job-id="' + job.id + '" data-state-def-id="' + state.state_definition_id + '" data-state-name="' + sName + '" ' + checked + ' style="width:12px;height:12px;margin:0;" />';
+            stateHtml += (state.display_name || sName) + '</label>';
+          }
+        }
+
+        // Active job: show progress + export and upload actions
         return `
           <div class="job-card" data-job-id="${job.id}" style="border-color: var(--accent); background: #1a1a3e;">
             <div class="job-number">${job.job_number} ${dueBadge} <span style="font-size: 9px; color: var(--green);">ACTIVE</span></div>
             <div class="job-title">${job.description || ''}</div>
             <div class="job-meta">${custName}</div>
             ${specsText ? `<div class="job-specs">${specsText}</div>` : ''}
+            ${stateHtml ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;padding:4px 0;border-top:1px solid var(--border);">${stateHtml}</div>` : ''}
             <div class="job-actions">
               <button class="btn btn-secondary btn-sm save-btn" data-job-id="${job.id}">Save</button>
               <button class="btn btn-amber btn-sm export-proof-btn" data-job-id="${job.id}" data-job-number="${job.job_number}">Export Proof</button>
@@ -352,6 +370,41 @@ function renderJobList(searchQuery) {
     });
     listEl.querySelectorAll('.open-doc-btn').forEach(btn => {
       btn.addEventListener('click', (e) => { e.stopPropagation(); handleOpenDocument(btn.dataset.jobId); });
+    });
+    // State toggle checkboxes — tick to complete a progress state
+    listEl.querySelectorAll('.state-toggle').forEach(function(cb) {
+      cb.addEventListener('change', function(e) {
+        e.stopPropagation();
+        var jobId = cb.dataset.jobId;
+        var stateDefId = cb.dataset.stateDefId;
+        var stateName = cb.dataset.stateName;
+        var job = jobCache[jobId] || {};
+
+        workflow.toggleJobState(jobId, stateDefId).then(function() {
+          // Auto-tick Received if not already done
+          if (stateName !== 'received') {
+            var states = job.states || [];
+            var received = states.find(function(s) { return s.state_name === 'received' && !s.completed; });
+            if (received) {
+              workflow.toggleJobState(jobId, received.state_definition_id).catch(function() {});
+            }
+          }
+          // Refresh job details + re-render
+          workflow.getJobDetails(jobId).then(function(updated) {
+            jobCache[jobId] = updated;
+            allJobsCache = allJobsCache.map(function(j) {
+              return j.id === jobId ? Object.assign({}, j, { states: updated.states }) : j;
+            });
+            var searchEl = document.getElementById('job-search');
+            renderJobList(searchEl ? searchEl.value.toLowerCase() || undefined : undefined);
+            showStatus((stateName.charAt(0).toUpperCase() + stateName.slice(1)) + ' updated');
+          }).catch(function() {});
+        }).catch(function(err) {
+          showError('State update failed: ' + err.message);
+          // Revert checkbox
+          cb.checked = !cb.checked;
+        });
+      });
     });
     listEl.querySelectorAll('.save-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
