@@ -8,7 +8,7 @@ const workflow = require('./src/api/workflow');
 const { createDocument } = require('./src/indesign/createDocument');
 const { exportProofPdf, exportOkPdf } = require('./src/indesign/exportPdf');
 const { placeImage } = require('./src/indesign/placeAsset');
-const { getPrefs, savePrefs } = require('./src/utils/storage');
+const { getPrefs, savePrefs, saveFolderToken, getFolderFromToken } = require('./src/utils/storage');
 const indesignModule = require('indesign');
 const indesign = indesignModule.app;
 const uxpStorage = require('uxp').storage;
@@ -132,7 +132,11 @@ async function renderMain(root) {
       if (!prefs) return;
       try {
         var el;
-        el = document.getElementById('pref-folder'); if (el) el.value = prefs.workingFolder || '';
+        el = document.getElementById('pref-folder');
+        if (el) {
+          el.value = prefs.workingFolder || '';
+          if (prefs.workingFolderToken) el.setAttribute('data-token', prefs.workingFolderToken);
+        }
         el = document.getElementById('pref-folder-structure'); if (el) el.value = prefs.folderStructure || 'year';
         el = document.getElementById('pref-bleed'); if (el) el.value = prefs.defaultBleed || 3;
         el = document.getElementById('pref-margins'); if (el) el.value = prefs.defaultMargins || 6;
@@ -145,16 +149,24 @@ async function renderMain(root) {
 
     document.getElementById('browse-folder-btn').addEventListener('click', function() {
       fs.getFolder().then(function(folder) {
-        if (folder) document.getElementById('pref-folder').value = folder.nativePath;
+        if (folder) {
+          document.getElementById('pref-folder').value = folder.nativePath;
+          // Save persistent token so we can re-access this folder later
+          saveFolderToken(folder).then(function(token) {
+            document.getElementById('pref-folder').setAttribute('data-token', token || '');
+          }).catch(function() {});
+        }
       }).catch(function() {});
     });
     document.getElementById('settings-cancel').addEventListener('click', function() {
       overlay.style.display = 'none';
     });
     document.getElementById('settings-save').addEventListener('click', function() {
+      var folderEl = document.getElementById('pref-folder');
       var updated = {
         apiUrl: document.getElementById('pref-api-url').value.trim() || 'https://app.helperharry.com/api',
-        workingFolder: document.getElementById('pref-folder').value || '',
+        workingFolder: folderEl.value || '',
+        workingFolderToken: folderEl.getAttribute('data-token') || '',
         folderStructure: document.getElementById('pref-folder-structure').value || 'year',
         defaultBleed: parseFloat(document.getElementById('pref-bleed').value) || 3,
         defaultMargins: parseFloat(document.getElementById('pref-margins').value) || 6,
@@ -292,12 +304,12 @@ async function handleCreateDocument(jobId) {
     }, prefs);
 
     // Auto-save with job-based filename so the document isn't "Untitled".
-    // Uses the configured working folder; falls back to a user folder pick.
+    // Uses the configured working folder (via persistent token); falls back to a folder pick.
     try {
       const docName = `${job.job_number} ${(job.description || custName).substring(0, 40).replace(/[/\\:*?"<>|]/g, '')}`.trim();
       let targetFolder;
-      if (prefs.workingFolder) {
-        targetFolder = await fs.getEntryForPersistentToken(prefs.workingFolder).catch(() => null);
+      if (prefs.workingFolderToken) {
+        targetFolder = await getFolderFromToken(prefs.workingFolderToken).catch(() => null);
       }
       if (!targetFolder) targetFolder = await fs.getFolder();
       if (targetFolder) {
@@ -459,8 +471,8 @@ async function handleExportProof(jobId, jobNumber) {
 
     const prefs = await getPrefs();
     let outputFolder = null;
-    if (prefs.workingFolder) {
-      try { outputFolder = await fs.getEntryForPersistentToken(prefs.workingFolder); } catch (e) {}
+    if (prefs.workingFolderToken) {
+      try { outputFolder = await getFolderFromToken(prefs.workingFolderToken); } catch (e) {}
     }
     showStatus(outputFolder ? 'Exporting proof...' : 'Select folder for proof PDF...');
     const filename = `${jobNumber}-proof.pdf`;
@@ -503,8 +515,8 @@ async function handleExportOkPdf(jobId, jobNumber) {
 
     const prefs = await getPrefs();
     let outputFolder = null;
-    if (prefs.workingFolder) {
-      try { outputFolder = await fs.getEntryForPersistentToken(prefs.workingFolder); } catch (e) {}
+    if (prefs.workingFolderToken) {
+      try { outputFolder = await getFolderFromToken(prefs.workingFolderToken); } catch (e) {}
     }
     showStatus(outputFolder ? 'Exporting press-ready PDF...' : 'Select folder for press-ready PDF...');
     const filename = `${jobNumber}-OK.pdf`;
