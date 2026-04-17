@@ -28,7 +28,7 @@ async function exportProofPdf(doc, outputFolder, filename) {
   if (!folder) throw new Error('No folder selected');
   const file = await folder.createFile(filename, { overwrite: true });
   doc.exportFile(ExportFormat.PDF_TYPE, file.nativePath, false);
-  return file.nativePath;
+  return { path: file.nativePath, entry: file };
 }
 
 async function exportOkPdf(doc, outputFolder, filename, bleedMM = 3) {
@@ -59,7 +59,7 @@ async function exportOkPdf(doc, outputFolder, filename, bleedMM = 3) {
   if (!folder) throw new Error('No folder selected');
   const file = await folder.createFile(filename, { overwrite: true });
   doc.exportFile(ExportFormat.PDF_TYPE, file.nativePath, false);
-  return file.nativePath;
+  return { path: file.nativePath, entry: file };
 }
 
 module.exports = { exportProofPdf, exportOkPdf };

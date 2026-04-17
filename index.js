@@ -23,44 +23,73 @@ if (typeof window !== 'undefined') {
   window.showSettings = function() { showSettings(); };
 }
 
-// Get or create a job subfolder under the working folder, respecting
-// the folder structure setting (year / customer / flat).
-async function getJobFolder(workingFolder, prefs, jobNumber, customerName) {
+// Get or create a job subfolder under the working folder.
+// jobInfo: { job_number, customer_company, customer_code, description, job_type_name }
+async function getJobFolder(workingFolder, prefs, jobInfo) {
   if (!workingFolder) return null;
+  var safe = function(s) { return (s || '').replace(/[/\\:*?"<>|]/g, '').trim(); };
   try {
     var structure = prefs.folderStructure || 'year';
     var parentFolder = workingFolder;
-    var safeCust = (customerName || '').replace(/[/\\:*?"<>|]/g, '').substring(0, 50).trim();
     var year = String(new Date().getFullYear());
+    var custName = safe(jobInfo.customer_company || jobInfo.customer_first_name || 'Customer');
+    var custCode = safe(jobInfo.customer_code || '');
+    var jobNum = safe(jobInfo.job_number || 'JOB');
+    var desc = safe((jobInfo.description || '').substring(0, 60));
+    var jobType = safe(jobInfo.job_type_name || '');
 
     if (structure === 'year') {
       // 2026/JOB-1234/
       try { parentFolder = await workingFolder.getEntry(year); }
       catch (e) { parentFolder = await workingFolder.createFolder(year); }
-    } else if (structure === 'customer' && safeCust) {
+      try { return await parentFolder.getEntry(jobNum); }
+      catch (e) { return await parentFolder.createFolder(jobNum); }
+
+    } else if (structure === 'customer') {
       // Customer Name/JOB-1234/
-      try { parentFolder = await workingFolder.getEntry(safeCust); }
-      catch (e) { parentFolder = await workingFolder.createFolder(safeCust); }
-    } else if (structure === 'yearCustomer' && safeCust) {
-      // 2026 Jobs/Customer Name - JOB-1234/  (Factory's preferred layout)
-      var yearFolder;
+      try { parentFolder = await workingFolder.getEntry(custName); }
+      catch (e) { parentFolder = await workingFolder.createFolder(custName); }
+      try { return await parentFolder.getEntry(jobNum); }
+      catch (e) { return await parentFolder.createFolder(jobNum); }
+
+    } else if (structure === 'yearCustomer') {
+      // Factory pattern:
+      // 2026 Jobs/Customer Name - Code/JOB-1234 Customer Desc - Type/
       var yearLabel = year + ' Jobs';
+      var yearFolder;
       try { yearFolder = await workingFolder.getEntry(yearLabel); }
       catch (e) { yearFolder = await workingFolder.createFolder(yearLabel); }
-      var custJobName = safeCust + ' - ' + jobNumber;
-      try { return await yearFolder.getEntry(custJobName); }
-      catch (e) { return await yearFolder.createFolder(custJobName); }
-    }
-    // flat = use workingFolder directly
 
-    // Job subfolder (for year / customer / flat)
-    var jobFolder;
-    try { jobFolder = await parentFolder.getEntry(jobNumber); }
-    catch (e) { jobFolder = await parentFolder.createFolder(jobNumber); }
-    return jobFolder;
+      var custFolderName = custCode ? (custName + ' - ' + custCode) : custName;
+      var custFolder;
+      try { custFolder = await yearFolder.getEntry(custFolderName); }
+      catch (e) { custFolder = await yearFolder.createFolder(custFolderName); }
+
+      var jobFolderName = [jobNum, custName, desc, jobType ? '- ' + jobType : ''].filter(Boolean).join(' ').substring(0, 120).trim();
+      try { return await custFolder.getEntry(jobFolderName); }
+      catch (e) { return await custFolder.createFolder(jobFolderName); }
+
+    } else {
+      // flat = JOB-1234/ directly in working folder
+      try { return await workingFolder.getEntry(jobNum); }
+      catch (e) { return await workingFolder.createFolder(jobNum); }
+    }
   } catch (e) {
     return workingFolder;
   }
+}
+
+// Build a Factory-style filename: JOB-1234 Customer Desc - Type STATUS.pdf
+function buildFilename(jobInfo, status) {
+  var safe = function(s) { return (s || '').replace(/[/\\:*?"<>|]/g, '').trim(); };
+  var parts = [
+    safe(jobInfo.job_number || 'JOB'),
+    safe(jobInfo.customer_company || jobInfo.customer_first_name || ''),
+    safe((jobInfo.description || '').substring(0, 50))
+  ];
+  if (jobInfo.job_type_name) parts.push('- ' + safe(jobInfo.job_type_name));
+  parts.push(status);
+  return parts.filter(Boolean).join(' ').substring(0, 150).trim() + '.pdf';
 }
 
 // ── Render the UI ──
@@ -365,14 +394,15 @@ async function handleCreateDocument(jobId) {
 
     // Auto-save with job-based filename into the structured folder.
     try {
-      const docName = `${job.job_number} ${(job.description || custName).substring(0, 40).replace(/[/\\:*?"<>|]/g, '')}`.trim();
+      const jobInfo = { job_number: job.job_number, customer_company: custName, customer_code: job.customer_code || '', description: job.description || '', job_type_name: job.job_type_name || '' };
+      const docName = [job.job_number, custName, (job.description || '').substring(0, 40)].filter(Boolean).join(' ').replace(/[/\\:*?"<>|]/g, '').trim();
       let workingFolder = null;
       if (prefs.workingFolderToken) {
         workingFolder = await getFolderFromToken(prefs.workingFolderToken).catch(() => null);
       }
       let targetFolder;
       if (workingFolder) {
-        targetFolder = await getJobFolder(workingFolder, prefs, job.job_number, custName);
+        targetFolder = await getJobFolder(workingFolder, prefs, jobInfo);
       } else {
         targetFolder = await fs.getFolder();
       }
@@ -533,43 +563,31 @@ async function handleExportProof(jobId, jobNumber) {
     if (!doc) { showError('No document open in InDesign'); return; }
 
     const prefs = await getPrefs();
+    const job = jobCache[jobId] || {};
+    const jobInfo = { job_number: jobNumber, customer_company: job.customer_company || job.customer_first_name || '', customer_code: job.customer_code || '', description: job.description || '', job_type_name: job.job_type_name || '' };
+
     let outputFolder = null;
     if (prefs.workingFolderToken) {
-      try {
-        var wf = await getFolderFromToken(prefs.workingFolderToken);
-        var custName = (jobCache[jobId] && (jobCache[jobId].customer_company || jobCache[jobId].customer_first_name)) || '';
-        outputFolder = await getJobFolder(wf, prefs, jobNumber, custName);
-      } catch (e) {}
+      try { outputFolder = await getJobFolder(await getFolderFromToken(prefs.workingFolderToken), prefs, jobInfo); } catch (e) {}
     }
     showStatus(outputFolder ? 'Exporting proof...' : 'Select folder for proof PDF...');
-    const filename = `${jobNumber}-proof.pdf`;
-    const outputPath = await exportProofPdf(doc, outputFolder, filename);
+    const filename = buildFilename(jobInfo, 'PROOF');
+    const result = await exportProofPdf(doc, outputFolder, filename);
 
     showStatus('Proof exported! Uploading to Helper Harry...');
     try {
-      // Read the file we just exported directly — no interactive picker
-      const entry = await fs.getEntryForPersistentToken(outputPath).catch(() => null)
-        || await fs.createSessionToken(outputPath).catch(() => null);
-      let buffer;
-      if (entry && entry.read) {
-        buffer = await entry.read({ format: uxpStorage.formats.binary });
-      } else {
-        // Fallback: try reading via the path the export function returned
-        const uxpFile = require('uxp').storage;
-        const fileEntry = await uxpFile.localFileSystem.getFileForOpening({ initialLocation: outputPath });
-        if (fileEntry) buffer = await fileEntry.read({ format: uxpFile.formats.binary });
-      }
+      var buffer = await result.entry.read({ format: uxpStorage.formats.binary });
       if (buffer) {
         await workflow.uploadJobFile(jobId, buffer, filename, 'proof');
-        showStatus('Proof uploaded to Helper Harry!');
+        showStatus('Proof saved + uploaded to Helper Harry!');
       } else {
-        showStatus('Proof saved locally (could not read file for upload)');
+        showStatus('Proof saved locally (could not read for upload)');
       }
     } catch (uploadErr) {
-      showStatus(`Proof saved locally (upload: ${uploadErr.message || 'skipped'})`);
+      showStatus('Proof saved locally (upload: ' + (uploadErr.message || 'skipped') + ')');
     }
   } catch (err) {
-    showError(`Export failed: ${err.message}`);
+    showError('Export failed: ' + err.message);
   }
 }
 
@@ -581,41 +599,31 @@ async function handleExportOkPdf(jobId, jobNumber) {
     if (!doc) { showError('No document open in InDesign'); return; }
 
     const prefs = await getPrefs();
+    const job = jobCache[jobId] || {};
+    const jobInfo = { job_number: jobNumber, customer_company: job.customer_company || job.customer_first_name || '', customer_code: job.customer_code || '', description: job.description || '', job_type_name: job.job_type_name || '' };
+
     let outputFolder = null;
     if (prefs.workingFolderToken) {
-      try {
-        var wf = await getFolderFromToken(prefs.workingFolderToken);
-        var custName = (jobCache[jobId] && (jobCache[jobId].customer_company || jobCache[jobId].customer_first_name)) || '';
-        outputFolder = await getJobFolder(wf, prefs, jobNumber, custName);
-      } catch (e) {}
+      try { outputFolder = await getJobFolder(await getFolderFromToken(prefs.workingFolderToken), prefs, jobInfo); } catch (e) {}
     }
     showStatus(outputFolder ? 'Exporting press-ready PDF...' : 'Select folder for press-ready PDF...');
-    const filename = `${jobNumber}-OK.pdf`;
-    const outputPath = await exportOkPdf(doc, outputFolder, filename, prefs.defaultBleed);
+    const filename = buildFilename(jobInfo, 'OK');
+    const result = await exportOkPdf(doc, outputFolder, filename, prefs.defaultBleed);
 
     showStatus('PDF exported! Uploading to Helper Harry...');
     try {
-      const entry = await fs.getEntryForPersistentToken(outputPath).catch(() => null)
-        || await fs.createSessionToken(outputPath).catch(() => null);
-      let buffer;
-      if (entry && entry.read) {
-        buffer = await entry.read({ format: uxpStorage.formats.binary });
-      } else {
-        const uxpFile = require('uxp').storage;
-        const fileEntry = await uxpFile.localFileSystem.getFileForOpening({ initialLocation: outputPath });
-        if (fileEntry) buffer = await fileEntry.read({ format: uxpFile.formats.binary });
-      }
+      var buffer = await result.entry.read({ format: uxpStorage.formats.binary });
       if (buffer) {
         await workflow.uploadJobFile(jobId, buffer, filename, 'print_ready');
-        showStatus('Press-ready PDF uploaded!');
+        showStatus('OK PDF saved + uploaded to Helper Harry!');
       } else {
-        showStatus('PDF saved locally (could not read file for upload)');
+        showStatus('PDF saved locally (could not read for upload)');
       }
     } catch (uploadErr) {
-      showStatus(`PDF saved locally (upload: ${uploadErr.message || 'skipped'})`);
+      showStatus('PDF saved locally (upload: ' + (uploadErr.message || 'skipped') + ')');
     }
   } catch (err) {
-    showError(`Export failed: ${err.message}`);
+    showError('Export failed: ' + err.message);
   }
 }
 
