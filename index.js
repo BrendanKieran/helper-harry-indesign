@@ -364,8 +364,7 @@ function renderJobList(searchQuery) {
             <div class="job-meta">${custName}</div>
             ${specsText ? `<div class="job-specs">${specsText}</div>` : ''}
             <div class="job-actions">
-              <button class="btn btn-primary btn-sm create-doc-btn" data-job-id="${job.id}">Create Document</button>
-              <button class="btn btn-secondary btn-sm open-doc-btn" data-job-id="${job.id}">Open</button>
+              <button class="btn btn-primary btn-sm create-doc-btn" data-job-id="${job.id}">Open / Create</button>
             </div>
           </div>
         `;
@@ -439,12 +438,37 @@ function renderJobList(searchQuery) {
 
 async function handleCreateDocument(jobId) {
   try {
-    showStatus('Creating document...');
+    showStatus('Loading job...');
     const job = await workflow.getJobDetails(jobId);
     const prefs = await getPrefs();
     currentJobId = jobId;
     currentCustomerId = job.customer_id;
     jobCache[jobId] = job;
+
+    // Check if a document already exists for this job — open it instead of creating new
+    try {
+      var localFile = await workflow.getLocalFilePath(jobId);
+      if (localFile && localFile.file_path) {
+        showStatus('Opening existing document...');
+        try {
+          var existingFile = await fs.getEntryForPersistentToken(localFile.file_path).catch(function() { return null; });
+          if (!existingFile) {
+            // Try as a plain path via session token
+            existingFile = localFile.file_path;
+          }
+          indesign.open(existingFile.nativePath ? existingFile : new (require('uxp').storage.File)(localFile.file_path));
+          showStatus('Opened: ' + job.job_number);
+          var searchEl = document.getElementById('job-search');
+          renderJobList(searchEl ? searchEl.value.toLowerCase() || undefined : undefined);
+          if (job.customer_id) loadCustomerAssets(job.customer_id);
+          return;
+        } catch (openErr) {
+          showStatus('Existing file not found — creating new document...');
+        }
+      }
+    } catch (e) {
+      // No saved path — continue to create new
+    }
 
     let widthMM = 210, heightMM = 297, pageCount = 1;
     const custName = job.customer_company || job.customer_first_name || 'Customer';
@@ -490,10 +514,13 @@ async function handleCreateDocument(jobId) {
       // Save is nice-to-have — document is still open and usable
     }
 
-    showStatus(`Document created: ${job.job_number}`);
+    showStatus('Document created: ' + job.job_number);
 
-    // Reload job list to show active state
-    loadJobs();
+    // Re-render the job list with the active state + progress checkboxes.
+    // Use renderJobList directly (data already cached) instead of loadJobs
+    // (which re-fetches and can race with the jobCache update).
+    var searchEl = document.getElementById('job-search');
+    renderJobList(searchEl ? searchEl.value.toLowerCase() || undefined : undefined);
 
     // Load customer assets
     if (job.customer_id) loadCustomerAssets(job.customer_id);
