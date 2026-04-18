@@ -163,7 +163,7 @@ async function renderMain(root) {
 
     <div id="assets-section" style="display: none;">
       <div class="divider"></div>
-      <div class="section-title">CUSTOMER ASSETS</div>
+      <div class="section-title">CUSTOMER ASSETS <button id="upload-asset-btn" class="btn btn-secondary btn-sm" style="float:right;">+ Upload</button></div>
       <div id="asset-list"></div>
     </div>
 
@@ -181,6 +181,24 @@ async function renderMain(root) {
       renderJobList(input.value.toLowerCase() || undefined);
     }, 300);
   });
+  document.getElementById('upload-asset-btn').addEventListener('click', async function() {
+    if (!currentCustomerId) { showError('Open a job first to upload assets'); return; }
+    try {
+      showStatus('Select a file to upload as customer asset...');
+      var file = await fs.getFileForOpening({
+        types: ['jpg', 'jpeg', 'png', 'tiff', 'tif', 'pdf', 'eps', 'ai', 'psd', 'svg']
+      });
+      if (!file) { showStatus('Upload cancelled'); return; }
+      showStatus('Uploading ' + file.name + '...');
+      var buffer = await file.read({ format: uxpStorage.formats.binary });
+      await workflow.uploadCustomerAsset(currentCustomerId, buffer, file.name);
+      showStatus(file.name + ' saved to customer assets!');
+      loadCustomerAssets(currentCustomerId);
+    } catch (err) {
+      showError('Asset upload failed: ' + err.message);
+    }
+  });
+
   document.getElementById('settings-btn').addEventListener('click', function() {
     var overlay = document.getElementById('settings-overlay');
     var html = '<div class="settings-panel">';

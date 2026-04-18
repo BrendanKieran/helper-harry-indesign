@@ -60,6 +60,27 @@ class WorkflowAPI {
     return this._fetch(`/workflow/customer-assets/${assetId}/url`);
   }
 
+  async uploadCustomerAsset(customerId, fileBuffer, filename) {
+    var prefs = await getPrefs();
+    var ext = (filename || '').split('.').pop().toLowerCase();
+    var mimeTypes = { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', tif: 'image/tiff', tiff: 'image/tiff', svg: 'image/svg+xml', eps: 'application/postscript', ai: 'application/postscript', psd: 'image/vnd.adobe.photoshop' };
+    var mimeType = mimeTypes[ext] || 'application/octet-stream';
+    var formData = new FormData();
+    var file;
+    try { file = new File([fileBuffer], filename || 'asset', { type: mimeType }); }
+    catch (e) { file = new Blob([fileBuffer], { type: mimeType }); }
+    formData.append('file', file, filename || 'asset');
+    formData.append('originalFilename', filename || 'asset');
+    formData.append('tags', 'from-indesign');
+    var res = await fetch(prefs.apiUrl + '/workflow/customers/' + customerId + '/assets', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + auth.token },
+      body: formData
+    });
+    if (!res.ok) throw new Error('Upload failed');
+    return res.json();
+  }
+
   // ── File Upload ──
 
   async uploadJobFile(jobId, fileBuffer, filename, category = 'proof') {
