@@ -46,9 +46,10 @@ async function getJobFolder(workingFolder, prefs, jobInfo) {
       catch (e) { return await parentFolder.createFolder(jobNum); }
 
     } else if (structure === 'customer') {
-      // Customer Name/JOB-1234/
-      try { parentFolder = await workingFolder.getEntry(custName); }
-      catch (e) { parentFolder = await workingFolder.createFolder(custName); }
+      // Customer Name - Code/JOB-1234/
+      var custFolder2 = custCode ? (custName + ' - ' + custCode) : custName;
+      try { parentFolder = await workingFolder.getEntry(custFolder2); }
+      catch (e) { parentFolder = await workingFolder.createFolder(custFolder2); }
       try { return await parentFolder.getEntry(jobNum); }
       catch (e) { return await parentFolder.createFolder(jobNum); }
 
