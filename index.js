@@ -18,6 +18,12 @@ let currentJobId = null;
 let currentCustomerId = null;
 let jobCache = {}; // cache job numbers for export
 
+// Full customer name — company if set, otherwise first + last name
+function customerName(job) {
+  if (job.customer_company) return job.customer_company;
+  return [job.customer_first_name, job.customer_last_name].filter(Boolean).join(' ') || 'Customer';
+}
+
 // Expose key functions globally so onclick attributes work in UXP
 if (typeof window !== 'undefined') {
   window.showSettings = function() { showSettings(); };
@@ -32,7 +38,7 @@ async function getJobFolder(workingFolder, prefs, jobInfo) {
     var structure = prefs.folderStructure || 'year';
     var parentFolder = workingFolder;
     var year = String(new Date().getFullYear());
-    var custName = safe(jobInfo.customer_company || jobInfo.customer_first_name || 'Customer');
+    var custName = safe(jobInfo.customer_company || [jobInfo.customer_first_name, jobInfo.customer_last_name].filter(Boolean).join(' ') || 'Customer');
     var custCode = safe(jobInfo.customer_code || '');
     var jobNum = safe(jobInfo.job_number || 'JOB');
     var desc = safe((jobInfo.description || '').substring(0, 60));
@@ -85,7 +91,7 @@ function buildFilename(jobInfo, status) {
   var safe = function(s) { return (s || '').replace(/[/\\:*?"<>|]/g, '').trim(); };
   var parts = [
     safe(jobInfo.job_number || 'JOB'),
-    safe(jobInfo.customer_company || jobInfo.customer_first_name || ''),
+    safe(jobInfo.customer_company || [jobInfo.customer_first_name, jobInfo.customer_last_name].filter(Boolean).join(' ') || ''),
     safe((jobInfo.description || '').substring(0, 50))
   ];
   if (jobInfo.job_type_name) parts.push('- ' + safe(jobInfo.job_type_name));
@@ -314,7 +320,7 @@ function renderJobList(searchQuery) {
   if (searchQuery) {
     var q = searchQuery.toLowerCase();
     allJobs = allJobs.filter(function(job) {
-      var custName = (job.customer_company || job.customer_first_name || '').toLowerCase();
+      var custName = (customerName(job)).toLowerCase();
       var desc = (job.description || '').toLowerCase();
       var num = (job.job_number || '').toLowerCase();
       return custName.indexOf(q) >= 0 || desc.indexOf(q) >= 0 || num.indexOf(q) >= 0;
@@ -327,7 +333,7 @@ function renderJobList(searchQuery) {
   }
 
     listEl.innerHTML = allJobs.map(job => {
-      const custName = job.customer_company || job.customer_first_name || '';
+      const custName = customerName(job);
       const isOverdue = job.deadline && new Date(job.deadline) < new Date();
       const dueText = job.deadline ? new Date(job.deadline).toLocaleDateString() : '';
       const dueBadge = isOverdue ? '<span class="badge badge-overdue">OVERDUE</span>' : (dueText ? `<span class="badge badge-due">${dueText}</span>` : '');
@@ -520,8 +526,8 @@ async function handleCreateDocument(jobId) {
       // No saved path — continue to create new
     }
 
-    var custName = job.customer_company || job.customer_first_name || 'Customer';
-    var jobInfo = { job_number: job.job_number, customer_company: custName, customer_code: job.customer_code || '', description: job.description || '', job_type_name: job.job_type_name || '' };
+    var custName = customerName(job);
+    var jobInfo = { job_number: job.job_number, customer_company: custName, customer_first_name: job.customer_first_name, customer_last_name: job.customer_last_name, customer_code: job.customer_code || '', description: job.description || '', job_type_name: job.job_type_name || '' };
     var docName = [job.job_number, custName, (job.description || '').substring(0, 40)].filter(Boolean).join(' ').replace(/[/\\:*?"<>|]/g, '').trim();
 
     // Check working folder for an existing .indd BEFORE creating a new doc
@@ -739,7 +745,7 @@ async function handleExportProof(jobId, jobNumber) {
 
     const prefs = await getPrefs();
     const job = jobCache[jobId] || {};
-    const jobInfo = { job_number: jobNumber, customer_company: job.customer_company || job.customer_first_name || '', customer_code: job.customer_code || '', description: job.description || '', job_type_name: job.job_type_name || '' };
+    const jobInfo = { job_number: jobNumber, customer_company: customerName(job), customer_code: job.customer_code || '', description: job.description || '', job_type_name: job.job_type_name || '' };
 
     let outputFolder = null;
     if (prefs.workingFolderToken) {
@@ -775,7 +781,7 @@ async function handleExportOkPdf(jobId, jobNumber) {
 
     const prefs = await getPrefs();
     const job = jobCache[jobId] || {};
-    const jobInfo = { job_number: jobNumber, customer_company: job.customer_company || job.customer_first_name || '', customer_code: job.customer_code || '', description: job.description || '', job_type_name: job.job_type_name || '' };
+    const jobInfo = { job_number: jobNumber, customer_company: customerName(job), customer_code: job.customer_code || '', description: job.description || '', job_type_name: job.job_type_name || '' };
 
     let outputFolder = null;
     if (prefs.workingFolderToken) {
@@ -814,118 +820,60 @@ async function handleSyncToCloud(jobId, jobNumber) {
 
     // Step 1: Save first
     showStatus('Saving document...');
-    try { doc.save(); } catch (e) { showError('Save failed — save the document first'); return; }
+    try { doc.save(); } catch (e) { showError('Save the document first (File → Save)'); return; }
 
-    // Step 2: Collect files — the .indd + all linked assets
-    showStatus('Collecting linked files...');
-    var filesToPack = [];
-    var docPath = doc.fullName ? doc.fullName.nativePath || String(doc.fullName) : null;
+    // Step 2: Get the saved document file
+    // UXP approach: use the document's saved file path to locate it
+    showStatus('Reading document...');
+    var docFile = null;
+    var docName = doc.name || (jobNumber + '.indd');
 
-    // Add the .indd itself
-    if (docPath) {
-      try {
-        var docEntry = await fs.getEntryForPersistentToken(docPath).catch(function() { return null; });
-        if (!docEntry) {
-          // Try via the folder the doc lives in
-          var docFolder = doc.fullName ? doc.fullName.parent : null;
-          if (docFolder) {
-            var entries = await docFolder.getEntries();
-            docEntry = entries.find(function(e) { return e.name === doc.name; });
-          }
-        }
-        if (docEntry) filesToPack.push({ entry: docEntry, name: doc.name });
-      } catch (e) {}
-    }
-
-    // Add linked images/assets
+    // Try to find the file via the saved local path on HH
     try {
-      for (var i = 0; i < doc.links.length; i++) {
-        var link = doc.links[i];
-        try {
-          var linkPath = link.filePath;
-          if (linkPath) {
-            // Try to get the linked file entry
-            var linkFolder = null;
-            var linkName = linkPath.split('/').pop().split('\\').pop();
-            try {
-              // Try parent folder of the document first (relative links)
-              if (doc.fullName && doc.fullName.parent) {
-                var parentEntries = await doc.fullName.parent.getEntries();
-                var found = parentEntries.find(function(e) { return e.name === linkName; });
-                if (found) { filesToPack.push({ entry: found, name: 'Links/' + linkName }); continue; }
-              }
-            } catch (e2) {}
-            // Try absolute path
-            try {
-              var absEntry = await fs.getEntryForPersistentToken(linkPath).catch(function() { return null; });
-              if (absEntry) filesToPack.push({ entry: absEntry, name: 'Links/' + linkName });
-            } catch (e3) {}
-          }
-        } catch (linkErr) {
-          // Skip unresolvable links
-        }
+      var localFile = await workflow.getLocalFilePath(jobId);
+      if (localFile && localFile.file_path) {
+        docFile = await fs.getEntryForPersistentToken(localFile.file_path).catch(function() { return null; });
       }
-    } catch (linksErr) {
-      // doc.links might not be available
+    } catch (e) {}
+
+    // Fallback: ask the user to pick the file
+    if (!docFile) {
+      showStatus('Select the InDesign file to sync...');
+      docFile = await fs.getFileForOpening({ types: ['indd'] });
     }
 
-    showStatus('Packaging ' + filesToPack.length + ' file(s)...');
+    if (!docFile) { showError('No file selected'); return; }
 
-    // Step 3: Read all files into buffers + compute total size
-    var fileBuffers = [];
-    var totalSize = 0;
-    for (var fi = 0; fi < filesToPack.length; fi++) {
-      try {
-        var buf = await filesToPack[fi].entry.read({ format: uxpStorage.formats.binary });
-        if (buf) {
-          var size = buf.byteLength || buf.length || 0;
-          fileBuffers.push({ name: filesToPack[fi].name, buffer: buf, size: size });
-          totalSize += size;
-        }
-      } catch (readErr) {}
-    }
+    // Step 3: Read the file
+    var buffer = await docFile.read({ format: uxpStorage.formats.binary });
+    if (!buffer) { showError('Could not read the document file'); return; }
+    var fileSize = buffer.byteLength || buffer.length || 0;
+    var archiveName = docName.endsWith('.indd') ? docName : (docName + '.indd');
 
-    if (fileBuffers.length === 0) {
-      showError('No files could be read for archiving');
-      return;
-    }
+    showStatus('Uploading to cloud (' + Math.round(fileSize / 1024) + ' KB)...');
 
-    // Step 4: Build a simple archive (concatenated with headers since
-    // UXP doesn't have a zip library — server side can handle a tar-like
-    // format, or we upload individual files). For MVP, upload the .indd
-    // as a single file — the most critical asset. Linked images are
-    // already on the customer's asset library or can be re-linked.
-    // Future: proper zip packaging.
+    // Step 4: Get presigned URL + upload directly to R2
+    var presign = await workflow.getArchiveUploadUrl(jobId, archiveName, 'application/octet-stream', fileSize);
 
-    // Upload the main .indd file as the archive
-    var mainFile = fileBuffers[0]; // The .indd
-    var archiveName = jobNumber + '-package.indd';
-
-    showStatus('Uploading to cloud (' + Math.round(totalSize / 1024) + ' KB)...');
-
-    // Get presigned URL
-    var presign = await workflow.getArchiveUploadUrl(jobId, archiveName, 'application/octet-stream', mainFile.size);
-
-    // Upload directly to R2
     var uploadRes = await fetch(presign.uploadUrl, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/octet-stream' },
-      body: mainFile.buffer
+      body: buffer
     });
-    if (!uploadRes.ok) throw new Error('Upload failed: ' + uploadRes.status);
+    if (!uploadRes.ok) throw new Error('Upload failed (HTTP ' + uploadRes.status + ')');
 
-    // Register the archive on HH
+    // Step 5: Register the archive on HH
     await workflow.registerArchive(jobId, {
       storageKey: presign.storageKey,
       originalFilename: archiveName,
-      fileCount: fileBuffers.length,
-      totalSizeBytes: totalSize,
-      notes: fileBuffers.length + ' files: ' + fileBuffers.map(function(f) { return f.name; }).join(', ')
+      fileCount: 1,
+      totalSizeBytes: fileSize,
+      notes: 'Synced from InDesign plugin'
     });
 
-    showStatus('Synced to cloud! (' + fileBuffers.length + ' files, ' + Math.round(totalSize / 1024) + ' KB)');
+    showStatus('Synced to cloud! (' + Math.round(fileSize / 1024) + ' KB)');
   } catch (err) {
-    showError('Sync failed: ' + err.message);
+    showError('Sync failed: ' + (err.message || err));
   }
 }
 
@@ -962,7 +910,7 @@ async function restoreFromCloud(jobId, jobNumber, prefs) {
     if (!workingFolder) throw new Error('No folder available for restore');
 
     var job = jobCache[jobId] || {};
-    var jobInfo = { job_number: jobNumber, customer_company: job.customer_company || '', customer_code: job.customer_code || '', description: job.description || '', job_type_name: job.job_type_name || '' };
+    var jobInfo = { job_number: jobNumber, customer_company: customerName(job), customer_first_name: job.customer_first_name, customer_last_name: job.customer_last_name, customer_code: job.customer_code || '', description: job.description || '', job_type_name: job.job_type_name || '' };
     var targetFolder = await getJobFolder(workingFolder, prefs, jobInfo);
 
     var filename = latest.original_filename || (jobNumber + '-package.indd');
