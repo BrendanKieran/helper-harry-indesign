@@ -4,12 +4,17 @@ UXP plugin for Adobe InDesign that connects to Helper Harry's print shop workflo
 
 ## Features
 
-- **Job List** — see your assigned jobs with specs, priority, and due dates
-- **Create Document** — one click creates an InDesign document with correct page size, bleed, margins, and page count
-- **Export Proof PDF** — 150 DPI, no bleed, compressed → uploads to HH as versioned proof
-- **Export OK PDF** — 300 DPI, press quality, bleed + crop marks → uploads to HH as print-ready
-- **Customer Assets** — browse and place customer logos/photos directly into your document
-- **Local File Tracking** — remembers where your InDesign files are saved
+- **Job List** — see your assigned jobs with specs, priority, due dates, and search/filter
+- **Open / Create** — intelligently opens an existing InDesign file (from NAS, local folder, or cloud archive) or creates a new document with correct page size, bleed, margins, and page count
+- **Job Progress** — tick Received / Designed / Proofed / Approved checkboxes directly from the panel. Auto-ticks Received when you complete any other state. Updates HH in real-time.
+- **Save** — save the active document from the panel (Cmd+S equivalent)
+- **Sync to Cloud** — packages the .indd and linked assets, uploads to HH's cloud archive (R2). Enables remote work — restore automatically when the NAS is unreachable from home.
+- **Export Proof PDF** — 150 DPI, no bleed, compressed → saves locally + auto-uploads to HH as versioned proof
+- **Export OK PDF** — 300 DPI, press quality, bleed + crop marks → saves locally + auto-uploads to HH as print-ready
+- **Upload File** — pick any file from disk and upload it to the job on HH
+- **Customer Assets** — browse, place into your layout (zero-stroke frames), and upload new assets to the customer's library
+- **Close** — save + close the document and deactivate the job in the panel
+- **Settings** — persistent preferences for working folder, folder structure, bleed, margins, DPI, auto-upload, API URL
 
 ## Requirements
 
@@ -144,25 +149,41 @@ The plugin calls Helper Harry's existing API:
 | Endpoint | Purpose |
 |----------|---------|
 | `POST /api/auth/login` | Authenticate user |
-| `GET /api/workflow/dashboard/my-jobs` | Fetch assigned jobs |
-| `GET /api/workflow/jobs/:id` | Job details with production specs |
+| `GET /api/workflow/dashboard/my-jobs` | Fetch assigned jobs with customer code |
+| `GET /api/workflow/jobs/:id` | Job details with production specs + states |
+| `POST /api/workflow/jobs/:id/states/:defId/toggle` | Toggle job progress state |
 | `PUT /api/workflow/jobs/:id/local-file-path` | Store local InDesign file path |
 | `GET /api/workflow/jobs/:id/local-file-path` | Retrieve saved file path |
-| `POST /api/workflow/jobs/:id/files` | Upload proof/OK PDF |
+| `POST /api/workflow/jobs/:id/files` | Upload proof/OK PDF/files |
 | `GET /api/workflow/customers/:id/assets` | Customer asset library |
+| `POST /api/workflow/customers/:id/assets` | Upload new customer asset |
 | `GET /api/workflow/customer-assets/:id/url` | Asset download URL |
+| `POST /api/workflow/jobs/:id/archives/presign` | Get presigned URL for archive upload |
+| `POST /api/workflow/jobs/:id/archives` | Register completed archive |
+| `GET /api/workflow/jobs/:id/archives` | List archives for restore |
+| `GET /api/workflow/archives/:id/restore` | Get presigned download URL |
 
 ---
 
 ## Designer Workflow
 
-1. Designer opens InDesign → opens Helper Harry panel
-2. Sees assigned jobs → clicks **Create Document** on a job
-3. Plugin creates InDesign document with correct specs (page size, bleed, margins, pages)
-4. Designer works on the layout
-5. Clicks **Export Proof** → uploads to HH → customer gets proof email
-6. Customer approves → designer clicks **Export OK PDF** (uses the Helper Harry Print preset)
-7. Press-ready PDF uploaded to HH → printer sees it in their queue
+1. Designer opens InDesign → opens Helper Harry panel → searches for their job
+2. Clicks **Open / Create** → opens existing file from NAS/local/cloud, or creates new with specs
+3. Designer works on the layout. Ticks **Designed** when done.
+4. Clicks **Export Proof** → PDF saves locally + auto-uploads to HH → customer gets proof email
+5. Customer approves → designer ticks **Approved** → clicks **Export OK PDF**
+6. Press-ready PDF saves locally + uploads to HH → printer sees it in their queue
+7. Clicks **Sync to Cloud** before leaving the office → safe to work from home tomorrow
+8. Clicks **Close** → document saved and closed
+
+### Remote Work (laptop at home, no NAS)
+
+1. Designer opens InDesign + Helper Harry panel
+2. Clicks **Open / Create** on the job
+3. Plugin tries the NAS path → fails (unreachable) → checks cloud archive → restores automatically to local folder
+4. Designer works normally. Export Proof / OK still auto-uploads to HH cloud.
+5. Clicks **Sync to Cloud** before finishing → updated package goes to cloud
+6. Back at the office next day: **Open / Create** opens from NAS or restores latest cloud version
 
 ---
 
