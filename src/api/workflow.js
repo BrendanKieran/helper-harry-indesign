@@ -105,6 +105,30 @@ class WorkflowAPI {
   async toggleJobState(jobId, stateDefId) {
     return this._fetch(`/workflow/jobs/${jobId}/states/${stateDefId}/toggle`, { method: 'POST' });
   }
+
+  // ── Cloud Archive ──
+
+  async getArchiveUploadUrl(jobId, filename, contentType, fileSize) {
+    return this._fetch(`/workflow/jobs/${jobId}/archives/presign`, {
+      method: 'POST',
+      body: JSON.stringify({ filename: filename, contentType: contentType || 'application/zip', fileSize: fileSize || 0 })
+    });
+  }
+
+  async registerArchive(jobId, data) {
+    return this._fetch(`/workflow/jobs/${jobId}/archives`, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async listArchives(jobId) {
+    return this._fetch(`/workflow/jobs/${jobId}/archives`);
+  }
+
+  async getRestoreUrl(archiveId) {
+    return this._fetch(`/workflow/archives/${archiveId}/restore`);
+  }
 }
 
 module.exports = new WorkflowAPI();
