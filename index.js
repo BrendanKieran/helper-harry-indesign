@@ -481,34 +481,27 @@ function renderJobList(searchQuery) {
       btn.addEventListener('click', (e) => { e.stopPropagation(); handleUploadFile(btn.dataset.jobId, btn.dataset.jobNumber); });
     });
     listEl.querySelectorAll('.open-folder-btn').forEach(function(btn) {
-      btn.addEventListener('click', async function(e) {
+      btn.addEventListener('click', function(e) {
         e.stopPropagation();
-        try {
-          var prefs = await getPrefs();
+        getPrefs().then(function(prefs) {
           var job = jobCache[btn.dataset.jobId] || {};
           var jobInfo = { job_number: btn.dataset.jobNumber, customer_company: customerName(job), customer_first_name: job.customer_first_name, customer_last_name: job.customer_last_name, customer_code: job.customer_code || '', description: job.description || '', job_type_name: job.job_type_name || '' };
-          var wf = prefs.workingFolderToken ? await getFolderFromToken(prefs.workingFolderToken).catch(function() { return null; }) : null;
-          if (!wf) { showError('Set a working folder in Settings first'); return; }
-          var jobFolder = await getJobFolder(wf, prefs, jobInfo);
-          if (jobFolder) {
-            var folderPath = jobFolder.nativePath;
-            var opened = false;
-            // Try multiple UXP shell APIs — availability varies by version
-            try { require('uxp').shell.openPath(folderPath); opened = true; } catch (e) {}
-            if (!opened) try { require('uxp').shell.openExternal('file://' + folderPath); opened = true; } catch (e) {}
-            if (!opened) try { require('uxp').host.openUrl('file://' + folderPath); opened = true; } catch (e) {}
-            if (!opened) {
-              // Last resort: copy path to clipboard so user can paste into Finder/Explorer
-              try {
-                var clip = require('uxp').clipboard;
-                clip.copyText(folderPath);
-                showStatus('Path copied: ' + folderPath);
-              } catch (e2) {
-                showStatus('Folder: ' + folderPath);
+          if (!prefs.workingFolderToken) { showStatus('Set a working folder in Settings first'); return; }
+          getFolderFromToken(prefs.workingFolderToken).then(function(wf) {
+            if (!wf) { showStatus('Working folder not accessible'); return; }
+            getJobFolder(wf, prefs, jobInfo).then(function(jobFolder) {
+              if (!jobFolder) { showStatus('Job folder not found'); return; }
+              var p = jobFolder.nativePath;
+              showStatus(p);
+              // Try to open in OS file manager
+              try { var s = require('uxp').shell; if (s && s.openPath) s.openPath(p); }
+              catch (e1) {
+                try { var s2 = require('uxp').shell; if (s2 && s2.openExternal) s2.openExternal('file://' + p); }
+                catch (e2) {}
               }
-            }
-          }
-        } catch (err) { showError('Could not open folder: ' + err.message); }
+            }).catch(function(err) { showStatus('Folder error: ' + err.message); });
+          }).catch(function(err) { showStatus('Folder token error: ' + err.message); });
+        }).catch(function(err) { showStatus('Prefs error: ' + err.message); });
       });
     });
     listEl.querySelectorAll('.close-job-btn').forEach(btn => {
