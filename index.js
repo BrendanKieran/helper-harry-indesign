@@ -171,6 +171,7 @@ async function renderMain(root) {
       </span>
     </div>
 
+    <div id="status-msg" class="msg msg-fixed msg-success" style="display: none;"></div>
     <div class="section-title">MY JOBS <button id="refresh-btn" class="btn btn-secondary btn-sm" style="float: right;">Refresh</button></div>
     <div style="margin-bottom:6px"><input id="job-search" class="input" placeholder="Search jobs..." style="font-size:11px;padding:4px 8px" /></div>
     <div id="job-list"><div class="empty"><span class="spinner"></span> Loading jobs...</div></div>
@@ -187,7 +188,6 @@ async function renderMain(root) {
       <div id="history-list"></div>
     </div>
 
-    <div id="status-msg" class="msg msg-success" style="display: none;"></div>
     <div id="settings-overlay" class="settings-overlay" style="display: none;"></div>
   `;
 
@@ -493,21 +493,8 @@ function renderJobList(searchQuery) {
           var jobFolder = await getJobFolder(wf, prefs, jobInfo);
           if (!jobFolder) { showStatus('Job folder not found'); return; }
           var folderPath = jobFolder.nativePath;
-          // Try to open in OS file manager
-          var opened = false;
-          try {
-            var shellMod = require('uxp').shell;
-            if (shellMod && shellMod.openPath) {
-              await shellMod.openPath(folderPath);
-              opened = true;
-            }
-          } catch (shellErr) {
-            showLongStatus('openPath error: ' + shellErr.message + ' | Path: ' + folderPath);
-          }
-          if (!opened) {
-            try { navigator.clipboard.writeText(folderPath); } catch (ce) {}
-            if (!opened) showLongStatus('Path copied! Finder: Cmd+Shift+G then paste.\n' + folderPath);
-          }
+          try { navigator.clipboard.writeText(folderPath); } catch (ce) {}
+          showLongStatus('Path copied! Finder: Cmd+Shift+G and paste. Explorer: paste in address bar. ' + folderPath);
         } catch (err) {
           showError('Folder: ' + err.message);
         }
@@ -1189,7 +1176,7 @@ function showStatus(msg) {
 
 function showLongStatus(msg) {
   var el = document.getElementById('status-msg');
-  if (el) { el.className = 'msg msg-success'; el.textContent = msg; el.style.display = 'block'; setTimeout(function() { el.style.display = 'none'; }, 10000); }
+  if (el) { el.className = 'msg msg-fixed msg-success'; el.textContent = msg; el.style.display = 'block'; setTimeout(function() { el.style.display = 'none'; }, 15000); }
 }
 
 function showError(msg) {
