@@ -491,9 +491,22 @@ function renderJobList(searchQuery) {
           if (!wf) { showError('Set a working folder in Settings first'); return; }
           var jobFolder = await getJobFolder(wf, prefs, jobInfo);
           if (jobFolder) {
-            // UXP: reveal folder in OS file manager
-            try { require('uxp').shell.openPath(jobFolder.nativePath); }
-            catch (shellErr) { showStatus('Folder: ' + jobFolder.nativePath); }
+            var folderPath = jobFolder.nativePath;
+            var opened = false;
+            // Try multiple UXP shell APIs — availability varies by version
+            try { require('uxp').shell.openPath(folderPath); opened = true; } catch (e) {}
+            if (!opened) try { require('uxp').shell.openExternal('file://' + folderPath); opened = true; } catch (e) {}
+            if (!opened) try { require('uxp').host.openUrl('file://' + folderPath); opened = true; } catch (e) {}
+            if (!opened) {
+              // Last resort: copy path to clipboard so user can paste into Finder/Explorer
+              try {
+                var clip = require('uxp').clipboard;
+                clip.copyText(folderPath);
+                showStatus('Path copied: ' + folderPath);
+              } catch (e2) {
+                showStatus('Folder: ' + folderPath);
+              }
+            }
           }
         } catch (err) { showError('Could not open folder: ' + err.message); }
       });

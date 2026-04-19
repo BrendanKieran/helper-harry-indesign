@@ -28,6 +28,10 @@
       ]
     },
     "localFileSystem": "fullAccess",
-    "clipboard": "readAndWrite"
+    "clipboard": "readAndWrite",
+    "launchProcess": {
+      "schemes": ["file"],
+      "extensions": []
+    }
   }
 }
