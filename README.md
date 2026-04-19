@@ -49,7 +49,7 @@ Two `.joboptions` presets ship in [dist/](./dist/) — pick the one matching the
 - **`helper-harry-print-uncoated-v1.0.joboptions`** — PSO Uncoated v3 (FOGRA52). Use for uncoated, recycled, and semi-recycled stocks. Most Factory jobs fall here.
 - **`helper-harry-print-coated-v1.0.joboptions`** — Coated FOGRA39 (ISO 12647-2:2004). Use for coated / silk / gloss stocks.
 
-**Both presets share the same structural settings** — PDF/X-4:2010, 3 mm bleed, crop marks, 300 DPI, CMYK preserved, fonts embedded. Only the output intent (ICC profile) differs.
+**Both presets share the same structural settings** — 3 mm bleed, crop marks, 300 DPI, all colours auto-converted to CMYK, fonts embedded. Only the output intent (ICC profile) differs.
 
 **Install (per preset):**
 

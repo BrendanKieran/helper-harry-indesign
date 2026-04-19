@@ -13,7 +13,7 @@
     /DefaultRenderingIntent /Default
     /DetectBlends true
     /DetectCurves 0.0000
-    /ColorConversionStrategy /LeaveColorUnchanged
+    /ColorConversionStrategy /CMYK
     /DoThumbnails false
     /EmbedAllFonts true
     /EmbedOpenType false
@@ -126,7 +126,6 @@
     >>
     /AllowPSXObjects false
     /CheckCompliance [
-        /PDFX4:2010
     ]
     /PDFX1aCheck false
     /PDFX3Check false
@@ -152,7 +151,7 @@
     /PDFXTrapped /False
 
     /Description <<
-      /ENU ([Based on 'Helper Harry Print - Coated'] PDF/X-4:2010 with Coated FOGRA39 \050ISO 12647-2:2004\051 output intent. Tuned for coated stocks. 3 mm bleed, crop marks, 300 DPI, CMYK preserved. Created PDF documents can be opened with Acrobat and Adobe Reader 7.0 and later.)
+      /ENU ([Based on 'Helper Harry Print - Coated'] Press-ready PDF with Coated FOGRA39 \050ISO 12647-2:2004\051 output intent. All colours converted to CMYK. Tuned for coated stocks. 3 mm bleed, crop marks, 300 DPI. Created PDF documents can be opened with Acrobat and Adobe Reader 7.0 and later.)
     >>
     /Namespace [
         (Adobe)
@@ -190,7 +189,7 @@
                 8.503940
                 8.503940
             ]
-            /ConvertColors /NoConversion
+            /ConvertColors /ConvertToCMYK
             /DestinationProfileName (Coated FOGRA39 \050ISO 12647-2:2004\051)
             /DestinationProfileSelector /UseName
             /Downsample16BitImages true
