@@ -492,13 +492,15 @@ function renderJobList(searchQuery) {
             getJobFolder(wf, prefs, jobInfo).then(function(jobFolder) {
               if (!jobFolder) { showStatus('Job folder not found'); return; }
               var p = jobFolder.nativePath;
-              showStatus(p);
-              // Try to open in OS file manager
-              try { var s = require('uxp').shell; if (s && s.openPath) s.openPath(p); }
-              catch (e1) {
-                try { var s2 = require('uxp').shell; if (s2 && s2.openExternal) s2.openExternal('file://' + p); }
-                catch (e2) {}
+              // Copy path to clipboard — designer pastes in Finder (Cmd+Shift+G) or Explorer address bar
+              try {
+                navigator.clipboard.writeText(p);
+                showLongStatus('Path copied! In Finder: Cmd+Shift+G and paste. In Explorer: paste in address bar.\n' + p);
+              } catch (clipErr) {
+                showLongStatus(p);
               }
+              // Still try to open natively as a bonus
+              try { require('uxp').shell.openPath(p); } catch (e) {}
             }).catch(function(err) { showStatus('Folder error: ' + err.message); });
           }).catch(function(err) { showStatus('Folder token error: ' + err.message); });
         }).catch(function(err) { showStatus('Prefs error: ' + err.message); });
@@ -1176,6 +1178,11 @@ async function loadCustomerHistory(customerId, currentJobId) {
 function showStatus(msg) {
   const el = document.getElementById('status-msg');
   if (el) { el.className = 'msg msg-success'; el.textContent = msg; el.style.display = 'block'; setTimeout(() => el.style.display = 'none', 3000); }
+}
+
+function showLongStatus(msg) {
+  var el = document.getElementById('status-msg');
+  if (el) { el.className = 'msg msg-success'; el.textContent = msg; el.style.display = 'block'; setTimeout(function() { el.style.display = 'none'; }, 10000); }
 }
 
 function showError(msg) {
