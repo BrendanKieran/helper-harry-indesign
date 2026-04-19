@@ -493,29 +493,23 @@ function renderJobList(searchQuery) {
           var jobFolder = await getJobFolder(wf, prefs, jobInfo);
           if (!jobFolder) { showStatus('Job folder not found'); return; }
           var folderPath = jobFolder.nativePath;
-          showStatus('Opening: ' + folderPath);
-          // Adobe docs: const { openPath } = require("uxp").shell
-          var openPath = require('uxp').shell.openPath;
-          if (!openPath) throw new Error('shell.openPath not available in this UXP version');
-          await openPath(folderPath);
-        } catch (err) {
-          // Fallback: copy path to clipboard
+          // Try to open in OS file manager
+          var opened = false;
           try {
-            var p = err._folderPath || '';
-            if (!p) {
-              var pr = await getPrefs();
-              var wf2 = pr.workingFolderToken ? await getFolderFromToken(pr.workingFolderToken) : null;
-              var j = jobCache[btn.dataset.jobId] || {};
-              var ji = { job_number: btn.dataset.jobNumber, customer_company: customerName(j), customer_first_name: j.customer_first_name, customer_last_name: j.customer_last_name, customer_code: j.customer_code || '', description: j.description || '', job_type_name: j.job_type_name || '' };
-              if (wf2) { var f = await getJobFolder(wf2, pr, ji); if (f) p = f.nativePath; }
+            var shellMod = require('uxp').shell;
+            if (shellMod && shellMod.openPath) {
+              await shellMod.openPath(folderPath);
+              opened = true;
             }
-            if (p) {
-              try { navigator.clipboard.writeText(p); } catch (ce) {}
-              showLongStatus('Path copied! Finder: Cmd+Shift+G → paste. Explorer: paste in address bar.\n' + p);
-            } else {
-              showError('Could not open folder: ' + err.message);
-            }
-          } catch (e2) { showError('Could not open folder'); }
+          } catch (shellErr) {
+            showLongStatus('openPath error: ' + shellErr.message + ' | Path: ' + folderPath);
+          }
+          if (!opened) {
+            try { navigator.clipboard.writeText(folderPath); } catch (ce) {}
+            if (!opened) showLongStatus('Path copied! Finder: Cmd+Shift+G then paste.\n' + folderPath);
+          }
+        } catch (err) {
+          showError('Folder: ' + err.message);
         }
       });
     });
