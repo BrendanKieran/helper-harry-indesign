@@ -150,6 +150,11 @@ class WorkflowAPI {
   async getRestoreUrl(archiveId) {
     return this._fetch(`/workflow/archives/${archiveId}/restore`);
   }
+
+  // Customer's other jobs (for cross-job reference)
+  async getCustomerJobs(customerId) {
+    return this._fetch(`/workflow/customers/${customerId}/jobs`);
+  }
 }
 
 module.exports = new WorkflowAPI();

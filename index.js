@@ -9,6 +9,7 @@ const { createDocument } = require('./src/indesign/createDocument');
 const { exportProofPdf, exportOkPdf } = require('./src/indesign/exportPdf');
 const { placeImage } = require('./src/indesign/placeAsset');
 const { getPrefs, savePrefs, saveFolderToken, getFolderFromToken } = require('./src/utils/storage');
+const JSZip = require('./src/utils/jszip.min');
 const indesignModule = require('indesign');
 const indesign = indesignModule.app;
 const uxpStorage = require('uxp').storage;
@@ -171,6 +172,12 @@ async function renderMain(root) {
       <div class="divider"></div>
       <div class="section-title">CUSTOMER ASSETS <button id="upload-asset-btn" class="btn btn-secondary btn-sm" style="float:right;">+ Upload</button></div>
       <div id="asset-list"></div>
+    </div>
+
+    <div id="history-section" style="display: none;">
+      <div class="divider"></div>
+      <div class="section-title">CUSTOMER HISTORY</div>
+      <div id="history-list"></div>
     </div>
 
     <div id="status-msg" class="msg msg-success" style="display: none;"></div>
@@ -483,6 +490,8 @@ function renderJobList(searchQuery) {
         currentCustomerId = null;
         var assetsSection = document.getElementById('assets-section');
         if (assetsSection) assetsSection.style.display = 'none';
+        var historySection = document.getElementById('history-section');
+        if (historySection) historySection.style.display = 'none';
         var searchEl = document.getElementById('job-search');
         renderJobList(searchEl ? searchEl.value.toLowerCase() || undefined : undefined);
         showStatus('Job saved and closed');
@@ -516,7 +525,7 @@ async function handleCreateDocument(jobId) {
           showStatus('Opened: ' + job.job_number);
           var searchEl = document.getElementById('job-search');
           renderJobList(searchEl ? searchEl.value.toLowerCase() || undefined : undefined);
-          if (job.customer_id) loadCustomerAssets(job.customer_id);
+          if (job.customer_id) { loadCustomerAssets(job.customer_id); loadCustomerHistory(job.customer_id, jobId); }
           return;
         } catch (openErr) {
           showStatus('Existing file not found — creating new document...');
@@ -549,7 +558,7 @@ async function handleCreateDocument(jobId) {
             }).catch(function() { workflow.saveLocalFilePath(jobId, existingEntry.nativePath, 'indesign').catch(function() {}); });
             var searchEl2 = document.getElementById('job-search');
             renderJobList(searchEl2 ? searchEl2.value.toLowerCase() || undefined : undefined);
-            if (job.customer_id) loadCustomerAssets(job.customer_id);
+            if (job.customer_id) { loadCustomerAssets(job.customer_id); loadCustomerHistory(job.customer_id, jobId); }
             return;
           }
         }
@@ -565,7 +574,7 @@ async function handleCreateDocument(jobId) {
         showStatus('Restored from cloud: ' + job.job_number);
         var searchEl3 = document.getElementById('job-search');
         renderJobList(searchEl3 ? searchEl3.value.toLowerCase() || undefined : undefined);
-        if (job.customer_id) loadCustomerAssets(job.customer_id);
+        if (job.customer_id) { loadCustomerAssets(job.customer_id); loadCustomerHistory(job.customer_id, jobId); }
         return;
       }
     } catch (restoreErr) {}
@@ -606,7 +615,7 @@ async function handleCreateDocument(jobId) {
     renderJobList(searchEl ? searchEl.value.toLowerCase() || undefined : undefined);
 
     // Load customer assets
-    if (job.customer_id) loadCustomerAssets(job.customer_id);
+    if (job.customer_id) { loadCustomerAssets(job.customer_id); loadCustomerHistory(job.customer_id, jobId); }
 
   } catch (err) {
     showError(`Create failed: ${err.message}`);
@@ -625,7 +634,7 @@ async function handleOpenDocument(jobId) {
       currentCustomerId = job.customer_id;
       jobCache[jobId] = job;
       loadJobs();
-      if (job.customer_id) loadCustomerAssets(job.customer_id);
+      if (job.customer_id) { loadCustomerAssets(job.customer_id); loadCustomerHistory(job.customer_id, jobId); }
       showStatus('Job selected — open your InDesign file manually, then use Export');
       return;
     }
@@ -642,7 +651,7 @@ async function handleOpenDocument(jobId) {
     currentCustomerId = job.customer_id;
     jobCache[jobId] = job;
     loadJobs();
-    if (job.customer_id) loadCustomerAssets(job.customer_id);
+    if (job.customer_id) { loadCustomerAssets(job.customer_id); loadCustomerHistory(job.customer_id, jobId); }
     showStatus('Job activated');
   } catch (err) {
     // Activate job even if open fails
@@ -817,79 +826,104 @@ async function handleExportOkPdf(jobId, jobNumber) {
 // and uploads to R2 via presigned URL. Serves as both long-term archive
 // AND remote-work bridge (restore from cloud when NAS is unreachable).
 
+// Walk a UXP folder recursively and collect all file entries
+async function walkFolder(folder, prefix) {
+  var files = [];
+  try {
+    var entries = await folder.getEntries();
+    for (var i = 0; i < entries.length; i++) {
+      var e = entries[i];
+      var path = prefix ? (prefix + '/' + e.name) : e.name;
+      if (e.isFolder) {
+        var sub = await walkFolder(e, path);
+        files = files.concat(sub);
+      } else {
+        files.push({ entry: e, path: path });
+      }
+    }
+  } catch (err) {}
+  return files;
+}
+
 async function handleSyncToCloud(jobId, jobNumber) {
   try {
     var doc = indesign.activeDocument;
     if (!doc) { showError('No document open'); return; }
 
-    // Step 1: Save first
+    // Step 1: Save
     showStatus('Saving document...');
     try { doc.save(); } catch (e) { showError('Save the document first (File → Save)'); return; }
 
-    // Step 2: Read the document that's currently open.
-    // Since the user just saved, we can read via the document's own file
-    // reference rather than needing to look up a path on HH.
-    showStatus('Reading document...');
-    var docName = doc.name || (jobNumber + '.indd');
-    var docFile = null;
-    var buffer = null;
+    // Step 2: Find the job folder
+    showStatus('Locating job folder...');
+    var prefs = await getPrefs();
+    var job = jobCache[jobId] || {};
+    var jobInfo = { job_number: jobNumber, customer_company: customerName(job), customer_first_name: job.customer_first_name, customer_last_name: job.customer_last_name, customer_code: job.customer_code || '', description: job.description || '', job_type_name: job.job_type_name || '' };
 
-    // Try 1: get the file entry from the document's saved location
-    try {
-      if (doc.fullName) {
-        // fullName may be a File entry or a path depending on UXP version
-        var entry = doc.fullName.nativePath ? doc.fullName : null;
-        if (entry) {
-          buffer = await entry.read({ format: uxpStorage.formats.binary });
-        }
-      }
-    } catch (e) {}
-
-    // Try 2: use the saved persistent token from when we created/opened the doc
-    if (!buffer) {
+    var jobFolder = null;
+    if (prefs.workingFolderToken) {
       try {
-        var localFile = await workflow.getLocalFilePath(jobId);
-        if (localFile && localFile.file_path) {
-          // Try as persistent token first, then as native path
-          docFile = await fs.getEntryForPersistentToken(localFile.file_path).catch(function() { return null; });
-          if (docFile) buffer = await docFile.read({ format: uxpStorage.formats.binary });
-        }
+        var wf = await getFolderFromToken(prefs.workingFolderToken);
+        if (wf) jobFolder = await getJobFolder(wf, prefs, jobInfo);
       } catch (e) {}
     }
 
-    // Try 3: ask the user to pick the file
-    if (!buffer) {
-      showStatus('Select the InDesign file to sync...');
-      docFile = await fs.getFileForOpening({ types: ['indd'] });
-      if (docFile) buffer = await docFile.read({ format: uxpStorage.formats.binary });
+    // Fallback: ask user to pick the job folder
+    if (!jobFolder) {
+      showStatus('Select the job folder to sync...');
+      jobFolder = await fs.getFolder();
+    }
+    if (!jobFolder) { showError('No folder selected'); return; }
+
+    // Step 3: Walk the folder and collect all files
+    showStatus('Scanning folder...');
+    var allFiles = await walkFolder(jobFolder, '');
+    if (allFiles.length === 0) { showError('No files found in the job folder'); return; }
+
+    showStatus('Zipping ' + allFiles.length + ' file(s)...');
+
+    // Step 4: Build a zip with JSZip
+    var zip = new JSZip();
+    var totalOrigSize = 0;
+    for (var fi = 0; fi < allFiles.length; fi++) {
+      try {
+        var buf = await allFiles[fi].entry.read({ format: uxpStorage.formats.binary });
+        if (buf) {
+          zip.file(allFiles[fi].path, buf);
+          totalOrigSize += (buf.byteLength || buf.length || 0);
+        }
+      } catch (readErr) {
+        // Skip unreadable files (permissions, locks)
+      }
+      if (fi % 5 === 0) showStatus('Zipping... ' + (fi + 1) + '/' + allFiles.length);
     }
 
-    if (!buffer) { showError('Could not read the document'); return; }
-    var fileSize = buffer.byteLength || buffer.length || 0;
-    var archiveName = docName.endsWith('.indd') ? docName : (docName + '.indd');
+    showStatus('Compressing...');
+    var zipBuffer = await zip.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+    var zipSize = zipBuffer.byteLength || 0;
+    var archiveName = jobNumber + '-archive.zip';
 
-    showStatus('Uploading to cloud (' + Math.round(fileSize / 1024) + ' KB)...');
+    showStatus('Uploading ' + Math.round(zipSize / 1024) + ' KB to cloud...');
 
-    // Step 4: Get presigned URL + upload directly to R2
-    var presign = await workflow.getArchiveUploadUrl(jobId, archiveName, 'application/octet-stream', fileSize);
-
+    // Step 5: Upload to R2 via presigned URL
+    var presign = await workflow.getArchiveUploadUrl(jobId, archiveName, 'application/zip', zipSize);
     var uploadRes = await fetch(presign.uploadUrl, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/octet-stream' },
-      body: buffer
+      headers: { 'Content-Type': 'application/zip' },
+      body: zipBuffer
     });
     if (!uploadRes.ok) throw new Error('Upload failed (HTTP ' + uploadRes.status + ')');
 
-    // Step 5: Register the archive on HH
+    // Step 6: Register on HH
     await workflow.registerArchive(jobId, {
       storageKey: presign.storageKey,
       originalFilename: archiveName,
-      fileCount: 1,
-      totalSizeBytes: fileSize,
-      notes: 'Synced from InDesign plugin'
+      fileCount: allFiles.length,
+      totalSizeBytes: zipSize,
+      notes: allFiles.length + ' files (' + Math.round(totalOrigSize / 1024) + ' KB original)'
     });
 
-    showStatus('Synced to cloud! (' + Math.round(fileSize / 1024) + ' KB)');
+    showStatus('Synced to cloud! ' + allFiles.length + ' files, ' + Math.round(zipSize / 1024) + ' KB');
   } catch (err) {
     showError('Sync failed: ' + (err.message || err));
   }
@@ -899,47 +933,73 @@ async function handleSyncToCloud(jobId, jobNumber) {
 // Downloads the latest cloud archive and extracts to a local folder.
 // Called automatically when Open/Create can't reach the NAS path.
 
-async function restoreFromCloud(jobId, jobNumber, prefs) {
+async function restoreFromCloud(jobId, jobNumber, prefs, targetFolderOverride) {
   try {
     var archives = await workflow.listArchives(jobId);
     if (!archives || archives.length === 0) return null;
 
-    var latest = archives[0]; // Already sorted DESC by created_at
-    showStatus('Restoring from cloud (' + Math.round((latest.total_size_bytes || 0) / 1024) + ' KB)...');
+    var latest = archives[0];
+    showStatus('Downloading from cloud (' + Math.round((latest.total_size_bytes || 0) / 1024) + ' KB)...');
 
-    // Get download URL
     var restore = await workflow.getRestoreUrl(latest.id);
     if (!restore || !restore.url) throw new Error('No restore URL');
-
-    // Download the file
     var response = await fetch(restore.url);
     if (!response.ok) throw new Error('Download failed');
-    var buffer = await response.arrayBuffer();
+    var zipBuffer = await response.arrayBuffer();
 
-    // Save to a local folder
-    var workingFolder = null;
-    if (prefs.workingFolderToken) {
-      workingFolder = await getFolderFromToken(prefs.workingFolderToken).catch(function() { return null; });
+    // Determine target folder
+    var targetFolder = targetFolderOverride;
+    if (!targetFolder) {
+      var workingFolder = null;
+      if (prefs.workingFolderToken) {
+        workingFolder = await getFolderFromToken(prefs.workingFolderToken).catch(function() { return null; });
+      }
+      if (!workingFolder) try { workingFolder = await fs.getFolder(); } catch (e) {}
+      if (!workingFolder) throw new Error('No folder available');
+      var job = jobCache[jobId] || {};
+      var jobInfo = { job_number: jobNumber, customer_company: customerName(job), customer_first_name: job.customer_first_name, customer_last_name: job.customer_last_name, customer_code: job.customer_code || '', description: job.description || '', job_type_name: job.job_type_name || '' };
+      targetFolder = await getJobFolder(workingFolder, prefs, jobInfo);
     }
-    if (!workingFolder) {
-      // Use the system documents folder as fallback
-      try { workingFolder = await fs.getFolder(); } catch (e) {}
+
+    // Extract zip or save single file
+    var isZip = latest.original_filename && latest.original_filename.endsWith('.zip');
+    if (isZip) {
+      showStatus('Extracting archive...');
+      var zip = await JSZip.loadAsync(zipBuffer);
+      var fileNames = Object.keys(zip.files);
+      var inddFile = null;
+      for (var i = 0; i < fileNames.length; i++) {
+        var zipEntry = zip.files[fileNames[i]];
+        if (zipEntry.dir) continue;
+        if (i % 5 === 0) showStatus('Extracting ' + (i + 1) + '/' + fileNames.length + '...');
+        var content = await zipEntry.async('arraybuffer');
+        var parts = fileNames[i].split('/');
+        var writeFolder = targetFolder;
+        for (var p = 0; p < parts.length - 1; p++) {
+          try { writeFolder = await writeFolder.getEntry(parts[p]); }
+          catch (e) { writeFolder = await writeFolder.createFolder(parts[p]); }
+        }
+        var outFile = await writeFolder.createFile(parts[parts.length - 1], { overwrite: true });
+        await outFile.write(content, { format: uxpStorage.formats.binary });
+        if (parts[parts.length - 1].endsWith('.indd') && !inddFile) inddFile = outFile;
+      }
+      if (inddFile) {
+        saveFolderToken(inddFile).then(function(token) {
+          workflow.saveLocalFilePath(jobId, token || inddFile.nativePath, 'indesign').catch(function() {});
+        }).catch(function() {});
+      }
+      showStatus('Restored ' + fileNames.length + ' files from cloud');
+      return inddFile;
+    } else {
+      var filename = latest.original_filename || (jobNumber + '.indd');
+      var file = await targetFolder.createFile(filename, { overwrite: true });
+      await file.write(zipBuffer, { format: uxpStorage.formats.binary });
+      saveFolderToken(file).then(function(token) {
+        workflow.saveLocalFilePath(jobId, token || file.nativePath, 'indesign').catch(function() {});
+      }).catch(function() {});
+      showStatus('Restored: ' + filename);
+      return file;
     }
-    if (!workingFolder) throw new Error('No folder available for restore');
-
-    var job = jobCache[jobId] || {};
-    var jobInfo = { job_number: jobNumber, customer_company: customerName(job), customer_first_name: job.customer_first_name, customer_last_name: job.customer_last_name, customer_code: job.customer_code || '', description: job.description || '', job_type_name: job.job_type_name || '' };
-    var targetFolder = await getJobFolder(workingFolder, prefs, jobInfo);
-
-    var filename = latest.original_filename || (jobNumber + '-package.indd');
-    var file = await targetFolder.createFile(filename, { overwrite: true });
-    await file.write(buffer, { format: uxpStorage.formats.binary });
-
-    // Save the new local path to HH
-    workflow.saveLocalFilePath(jobId, file.nativePath, 'indesign').catch(function() {});
-
-    showStatus('Restored from cloud: ' + filename);
-    return file;
   } catch (err) {
     showError('Restore failed: ' + err.message);
     return null;
@@ -1011,6 +1071,71 @@ async function loadCustomerAssets(customerId) {
     });
   } catch (err) {
     listEl.innerHTML = `<div class="msg msg-error">${err.message}</div>`;
+  }
+}
+
+// ── Customer History (cross-job reference) ──
+
+async function loadCustomerHistory(customerId, currentJobId) {
+  var section = document.getElementById('history-section');
+  var listEl = document.getElementById('history-list');
+  if (!section || !listEl) return;
+  section.style.display = 'block';
+  listEl.innerHTML = '<div class="empty"><span class="spinner"></span> Loading...</div>';
+
+  try {
+    var jobs = await workflow.getCustomerJobs(customerId);
+    // Filter out the current job
+    jobs = (jobs || []).filter(function(j) { return j.id !== currentJobId; });
+
+    if (jobs.length === 0) {
+      listEl.innerHTML = '<div class="empty">No other jobs for this customer</div>';
+      return;
+    }
+
+    listEl.innerHTML = jobs.slice(0, 15).map(function(j) {
+      var hasArchive = (j.archive_count || 0) > 0;
+      var archiveBadge = hasArchive ? '<span style="color:var(--accent);font-size:9px;font-weight:700;margin-left:4px;">CLOUD</span>' : '';
+      var date = new Date(j.created_at).toLocaleDateString('en-IE', { day: '2-digit', month: 'short', year: '2-digit' });
+      return '<div class="asset-card" style="flex-direction:column;align-items:stretch;gap:2px;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+          '<span style="font-weight:600;font-size:11px;color:var(--accent-light);">' + j.job_number + archiveBadge + '</span>' +
+          '<span style="font-size:9px;color:var(--text-dim);">' + date + '</span>' +
+        '</div>' +
+        '<div style="font-size:11px;">' + (j.description || '').substring(0, 50) + '</div>' +
+        (hasArchive ? '<button class="btn btn-secondary btn-sm restore-history-btn" data-job-id="' + j.id + '" data-job-number="' + j.job_number + '" style="margin-top:3px;font-size:9px;">Restore to current folder</button>' : '') +
+      '</div>';
+    }).join('');
+
+    // Restore buttons
+    listEl.querySelectorAll('.restore-history-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function(e) {
+        e.stopPropagation();
+        var refJobId = btn.dataset.jobId;
+        var refJobNumber = btn.dataset.jobNumber;
+        try {
+          showStatus('Restoring ' + refJobNumber + '...');
+          var prefs = await getPrefs();
+          // Get the CURRENT job's folder and create a reference subfolder
+          var currentJob = jobCache[currentJobId] || {};
+          var currentJobInfo = { job_number: currentJob.job_number || 'current', customer_company: customerName(currentJob), customer_first_name: currentJob.customer_first_name, customer_last_name: currentJob.customer_last_name, customer_code: currentJob.customer_code || '', description: currentJob.description || '', job_type_name: currentJob.job_type_name || '' };
+          var wf = prefs.workingFolderToken ? await getFolderFromToken(prefs.workingFolderToken).catch(function() { return null; }) : null;
+          var currentFolder = wf ? await getJobFolder(wf, prefs, currentJobInfo) : await fs.getFolder();
+          if (!currentFolder) { showError('No folder available'); return; }
+          // Create a reference subfolder
+          var refFolderName = 'Reference - ' + refJobNumber;
+          var refFolder;
+          try { refFolder = await currentFolder.getEntry(refFolderName); }
+          catch (e2) { refFolder = await currentFolder.createFolder(refFolderName); }
+          await restoreFromCloud(refJobId, refJobNumber, prefs, refFolder);
+          showStatus(refJobNumber + ' restored to ' + refFolderName);
+        } catch (err) {
+          showError('Restore failed: ' + err.message);
+        }
+      });
+    });
+  } catch (err) {
+    listEl.innerHTML = '<div class="msg msg-error">' + err.message + '</div>';
   }
 }
 
