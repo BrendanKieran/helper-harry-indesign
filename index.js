@@ -390,7 +390,8 @@ function renderJobList(searchQuery) {
               <button class="btn btn-secondary btn-sm save-btn" data-job-id="${job.id}">Save</button>
               <button class="btn btn-primary btn-sm sync-cloud-btn" data-job-id="${job.id}" data-job-number="${job.job_number}" style="background:var(--accent);">Sync to Cloud</button>
               <button class="btn btn-amber btn-sm export-proof-btn" data-job-id="${job.id}" data-job-number="${job.job_number}">Export Proof</button>
-              <button class="btn btn-green btn-sm export-ok-btn" data-job-id="${job.id}" data-job-number="${job.job_number}">Export OK PDF</button>
+              <button class="btn btn-green btn-sm export-ok-btn" data-job-id="${job.id}" data-job-number="${job.job_number}" data-coated="false">OK Uncoated</button>
+              <button class="btn btn-sm export-ok-btn" data-job-id="${job.id}" data-job-number="${job.job_number}" data-coated="true" style="background:#0EA5E9;color:white;">OK Coated</button>
               <button class="btn btn-secondary btn-sm upload-btn" data-job-id="${job.id}" data-job-number="${job.job_number}">Upload File</button>
               <button class="btn btn-secondary btn-sm open-folder-btn" data-job-id="${job.id}" data-job-number="${job.job_number}" title="Open job folder in Finder/Explorer">&#128193; Folder</button>
               <button class="btn btn-secondary btn-sm close-job-btn" data-job-id="${job.id}" style="color:var(--text-dim);">Close</button>
@@ -475,7 +476,7 @@ function renderJobList(searchQuery) {
       btn.addEventListener('click', (e) => { e.stopPropagation(); handleExportProof(btn.dataset.jobId, btn.dataset.jobNumber); });
     });
     listEl.querySelectorAll('.export-ok-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => { e.stopPropagation(); handleExportOkPdf(btn.dataset.jobId, btn.dataset.jobNumber); });
+      btn.addEventListener('click', (e) => { e.stopPropagation(); handleExportOkPdf(btn.dataset.jobId, btn.dataset.jobNumber, btn.dataset.coated === 'true'); });
     });
     listEl.querySelectorAll('.upload-btn').forEach(btn => {
       btn.addEventListener('click', (e) => { e.stopPropagation(); handleUploadFile(btn.dataset.jobId, btn.dataset.jobNumber); });
@@ -815,7 +816,7 @@ async function handleExportProof(jobId, jobNumber) {
 
 // ── Export OK PDF ──
 
-async function handleExportOkPdf(jobId, jobNumber) {
+async function handleExportOkPdf(jobId, jobNumber, coated) {
   try {
     const doc = indesign.activeDocument;
     if (!doc) { showError('No document open in InDesign'); return; }
@@ -828,9 +829,10 @@ async function handleExportOkPdf(jobId, jobNumber) {
     if (prefs.workingFolderToken) {
       try { outputFolder = await getJobFolder(await getFolderFromToken(prefs.workingFolderToken), prefs, jobInfo); } catch (e) {}
     }
-    showStatus(outputFolder ? 'Exporting press-ready PDF...' : 'Select folder for press-ready PDF...');
+    var label = coated ? 'coated' : 'uncoated';
+    showStatus(outputFolder ? 'Exporting ' + label + ' press-ready PDF...' : 'Select folder for press-ready PDF...');
     const filename = buildFilename(jobInfo, 'OK');
-    const result = await exportOkPdf(doc, outputFolder, filename, prefs.defaultBleed);
+    const result = await exportOkPdf(doc, outputFolder, filename, prefs.defaultBleed, coated);
 
     showStatus('PDF exported! Uploading to Helper Harry...');
     try {

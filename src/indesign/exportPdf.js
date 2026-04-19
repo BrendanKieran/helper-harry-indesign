@@ -5,7 +5,7 @@ const localFS = uxpfs.localFileSystem;
 
 async function exportProofPdf(doc, outputFolder, filename) {
   // Proof: low res, no bleed, no marks, compressed
-  app.pdfExportPreferences.viewPDF = false;
+  app.pdfExportPreferences.viewPDF = true;
   app.pdfExportPreferences.cropMarks = false;
   app.pdfExportPreferences.bleedMarks = false;
   app.pdfExportPreferences.registrationMarks = false;
@@ -31,12 +31,12 @@ async function exportProofPdf(doc, outputFolder, filename) {
   return { path: file.nativePath, entry: file };
 }
 
-async function exportOkPdf(doc, outputFolder, filename, bleedMM = 3) {
-  // Press-ready: high res, bleed, crop marks, max quality
-  app.pdfExportPreferences.viewPDF = false;
+async function exportOkPdf(doc, outputFolder, filename, bleedMM = 3, coated = false) {
+  // Press-ready: high res, bleed, crop marks only, max quality, CMYK
+  app.pdfExportPreferences.viewPDF = true;
   app.pdfExportPreferences.cropMarks = true;
-  app.pdfExportPreferences.bleedMarks = true;
-  app.pdfExportPreferences.registrationMarks = true;
+  app.pdfExportPreferences.bleedMarks = false;
+  app.pdfExportPreferences.registrationMarks = false;
   app.pdfExportPreferences.colorBars = false;
   app.pdfExportPreferences.pageInformationMarks = false;
 
@@ -53,6 +53,13 @@ async function exportOkPdf(doc, outputFolder, filename, bleedMM = 3) {
   app.pdfExportPreferences.grayscaleBitmapSampling = Sampling.BICUBIC_DOWNSAMPLE;
   app.pdfExportPreferences.grayscaleBitmapSamplingDPI = 300;
   app.pdfExportPreferences.grayscaleBitmapQuality = CompressionQuality.MAXIMUM;
+
+  try { app.pdfExportPreferences.pdfColorSpace = 1668051808; } catch (e) {}
+  try {
+    app.pdfExportPreferences.pdfDestinationProfile = coated
+      ? 'Coated FOGRA39 (ISO 12647-2:2004)'
+      : 'PSO Uncoated v3 (FOGRA52)';
+  } catch (e) {}
 
   // Use configured working folder if available; fall back to a picker
   const folder = outputFolder || await localFS.getFolder();
