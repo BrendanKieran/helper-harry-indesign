@@ -132,10 +132,10 @@ function renderLogin(root) {
     </div>
   `;
 
-  document.getElementById('login-btn').addEventListener('click', async () => {
-    const email = document.getElementById('login-email').value;
-    const password = document.getElementById('login-password').value;
-    const errEl = document.getElementById('login-error');
+  async function doLogin() {
+    var email = document.getElementById('login-email').value;
+    var password = document.getElementById('login-password').value;
+    var errEl = document.getElementById('login-error');
     if (!email || !password) { errEl.textContent = 'Enter email and password'; errEl.style.display = 'block'; return; }
     try {
       document.getElementById('login-btn').textContent = 'Logging in...';
@@ -145,6 +145,13 @@ function renderLogin(root) {
       errEl.textContent = err.message; errEl.style.display = 'block';
       document.getElementById('login-btn').textContent = 'Log In';
     }
+  }
+  document.getElementById('login-btn').addEventListener('click', doLogin);
+  document.getElementById('login-password').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') doLogin();
+  });
+  document.getElementById('login-email').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') document.getElementById('login-password').focus();
   });
 }
 
@@ -385,6 +392,7 @@ function renderJobList(searchQuery) {
               <button class="btn btn-amber btn-sm export-proof-btn" data-job-id="${job.id}" data-job-number="${job.job_number}">Export Proof</button>
               <button class="btn btn-green btn-sm export-ok-btn" data-job-id="${job.id}" data-job-number="${job.job_number}">Export OK PDF</button>
               <button class="btn btn-secondary btn-sm upload-btn" data-job-id="${job.id}" data-job-number="${job.job_number}">Upload File</button>
+              <button class="btn btn-secondary btn-sm open-folder-btn" data-job-id="${job.id}" data-job-number="${job.job_number}" title="Open job folder in Finder/Explorer">&#128193; Folder</button>
               <button class="btn btn-secondary btn-sm close-job-btn" data-job-id="${job.id}" style="color:var(--text-dim);">Close</button>
             </div>
           </div>
@@ -471,6 +479,24 @@ function renderJobList(searchQuery) {
     });
     listEl.querySelectorAll('.upload-btn').forEach(btn => {
       btn.addEventListener('click', (e) => { e.stopPropagation(); handleUploadFile(btn.dataset.jobId, btn.dataset.jobNumber); });
+    });
+    listEl.querySelectorAll('.open-folder-btn').forEach(function(btn) {
+      btn.addEventListener('click', async function(e) {
+        e.stopPropagation();
+        try {
+          var prefs = await getPrefs();
+          var job = jobCache[btn.dataset.jobId] || {};
+          var jobInfo = { job_number: btn.dataset.jobNumber, customer_company: customerName(job), customer_first_name: job.customer_first_name, customer_last_name: job.customer_last_name, customer_code: job.customer_code || '', description: job.description || '', job_type_name: job.job_type_name || '' };
+          var wf = prefs.workingFolderToken ? await getFolderFromToken(prefs.workingFolderToken).catch(function() { return null; }) : null;
+          if (!wf) { showError('Set a working folder in Settings first'); return; }
+          var jobFolder = await getJobFolder(wf, prefs, jobInfo);
+          if (jobFolder) {
+            // UXP: reveal folder in OS file manager
+            try { require('uxp').shell.openPath(jobFolder.nativePath); }
+            catch (shellErr) { showStatus('Folder: ' + jobFolder.nativePath); }
+          }
+        } catch (err) { showError('Could not open folder: ' + err.message); }
+      });
     });
     listEl.querySelectorAll('.close-job-btn').forEach(btn => {
       btn.addEventListener('click', function(e) {
