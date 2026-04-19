@@ -493,10 +493,11 @@ function renderJobList(searchQuery) {
           var jobFolder = await getJobFolder(wf, prefs, jobInfo);
           if (!jobFolder) { showStatus('Job folder not found'); return; }
           var folderPath = jobFolder.nativePath;
-          // Adobe docs: await shell.openPath(folderEntry.nativePath)
-          // Requires launchProcess permission in manifest.json
-          var shell = require('uxp').shell;
-          await shell.openPath(folderPath);
+          showStatus('Opening: ' + folderPath);
+          // Adobe docs: const { openPath } = require("uxp").shell
+          var openPath = require('uxp').shell.openPath;
+          if (!openPath) throw new Error('shell.openPath not available in this UXP version');
+          await openPath(folderPath);
         } catch (err) {
           // Fallback: copy path to clipboard
           try {
