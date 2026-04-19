@@ -544,7 +544,9 @@ async function handleCreateDocument(jobId) {
           if (existingEntry) {
             indesign.open(existingEntry);
             showStatus('Opened: ' + job.job_number);
-            workflow.saveLocalFilePath(jobId, existingEntry.nativePath, 'indesign').catch(function() {});
+            saveFolderToken(existingEntry).then(function(token) {
+              workflow.saveLocalFilePath(jobId, token || existingEntry.nativePath, 'indesign').catch(function() {});
+            }).catch(function() { workflow.saveLocalFilePath(jobId, existingEntry.nativePath, 'indesign').catch(function() {}); });
             var searchEl2 = document.getElementById('job-search');
             renderJobList(searchEl2 ? searchEl2.value.toLowerCase() || undefined : undefined);
             if (job.customer_id) loadCustomerAssets(job.customer_id);
@@ -589,7 +591,9 @@ async function handleCreateDocument(jobId) {
       if (saveFolder) {
         var file = await saveFolder.createFile(docName + '.indd', { overwrite: false });
         doc.save(file);
-        workflow.saveLocalFilePath(jobId, file.nativePath, 'indesign').catch(function() {});
+        saveFolderToken(file).then(function(token) {
+          workflow.saveLocalFilePath(jobId, token || file.nativePath, 'indesign').catch(function() {});
+        }).catch(function() { workflow.saveLocalFilePath(jobId, file.nativePath, 'indesign').catch(function() {}); });
       }
     } catch (saveErr) {}
 
@@ -822,31 +826,45 @@ async function handleSyncToCloud(jobId, jobNumber) {
     showStatus('Saving document...');
     try { doc.save(); } catch (e) { showError('Save the document first (File → Save)'); return; }
 
-    // Step 2: Get the saved document file
-    // UXP approach: use the document's saved file path to locate it
+    // Step 2: Read the document that's currently open.
+    // Since the user just saved, we can read via the document's own file
+    // reference rather than needing to look up a path on HH.
     showStatus('Reading document...');
-    var docFile = null;
     var docName = doc.name || (jobNumber + '.indd');
+    var docFile = null;
+    var buffer = null;
 
-    // Try to find the file via the saved local path on HH
+    // Try 1: get the file entry from the document's saved location
     try {
-      var localFile = await workflow.getLocalFilePath(jobId);
-      if (localFile && localFile.file_path) {
-        docFile = await fs.getEntryForPersistentToken(localFile.file_path).catch(function() { return null; });
+      if (doc.fullName) {
+        // fullName may be a File entry or a path depending on UXP version
+        var entry = doc.fullName.nativePath ? doc.fullName : null;
+        if (entry) {
+          buffer = await entry.read({ format: uxpStorage.formats.binary });
+        }
       }
     } catch (e) {}
 
-    // Fallback: ask the user to pick the file
-    if (!docFile) {
-      showStatus('Select the InDesign file to sync...');
-      docFile = await fs.getFileForOpening({ types: ['indd'] });
+    // Try 2: use the saved persistent token from when we created/opened the doc
+    if (!buffer) {
+      try {
+        var localFile = await workflow.getLocalFilePath(jobId);
+        if (localFile && localFile.file_path) {
+          // Try as persistent token first, then as native path
+          docFile = await fs.getEntryForPersistentToken(localFile.file_path).catch(function() { return null; });
+          if (docFile) buffer = await docFile.read({ format: uxpStorage.formats.binary });
+        }
+      } catch (e) {}
     }
 
-    if (!docFile) { showError('No file selected'); return; }
+    // Try 3: ask the user to pick the file
+    if (!buffer) {
+      showStatus('Select the InDesign file to sync...');
+      docFile = await fs.getFileForOpening({ types: ['indd'] });
+      if (docFile) buffer = await docFile.read({ format: uxpStorage.formats.binary });
+    }
 
-    // Step 3: Read the file
-    var buffer = await docFile.read({ format: uxpStorage.formats.binary });
-    if (!buffer) { showError('Could not read the document file'); return; }
+    if (!buffer) { showError('Could not read the document'); return; }
     var fileSize = buffer.byteLength || buffer.length || 0;
     var archiveName = docName.endsWith('.indd') ? docName : (docName + '.indd');
 
