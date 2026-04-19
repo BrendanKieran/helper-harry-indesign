@@ -481,29 +481,41 @@ function renderJobList(searchQuery) {
       btn.addEventListener('click', (e) => { e.stopPropagation(); handleUploadFile(btn.dataset.jobId, btn.dataset.jobNumber); });
     });
     listEl.querySelectorAll('.open-folder-btn').forEach(function(btn) {
-      btn.addEventListener('click', function(e) {
+      btn.addEventListener('click', async function(e) {
         e.stopPropagation();
-        getPrefs().then(function(prefs) {
+        try {
+          var prefs = await getPrefs();
           var job = jobCache[btn.dataset.jobId] || {};
           var jobInfo = { job_number: btn.dataset.jobNumber, customer_company: customerName(job), customer_first_name: job.customer_first_name, customer_last_name: job.customer_last_name, customer_code: job.customer_code || '', description: job.description || '', job_type_name: job.job_type_name || '' };
           if (!prefs.workingFolderToken) { showStatus('Set a working folder in Settings first'); return; }
-          getFolderFromToken(prefs.workingFolderToken).then(function(wf) {
-            if (!wf) { showStatus('Working folder not accessible'); return; }
-            getJobFolder(wf, prefs, jobInfo).then(function(jobFolder) {
-              if (!jobFolder) { showStatus('Job folder not found'); return; }
-              var p = jobFolder.nativePath;
-              // Copy path to clipboard — designer pastes in Finder (Cmd+Shift+G) or Explorer address bar
-              try {
-                navigator.clipboard.writeText(p);
-                showLongStatus('Path copied! In Finder: Cmd+Shift+G and paste. In Explorer: paste in address bar.\n' + p);
-              } catch (clipErr) {
-                showLongStatus(p);
-              }
-              // Still try to open natively as a bonus
-              try { require('uxp').shell.openPath(p); } catch (e) {}
-            }).catch(function(err) { showStatus('Folder error: ' + err.message); });
-          }).catch(function(err) { showStatus('Folder token error: ' + err.message); });
-        }).catch(function(err) { showStatus('Prefs error: ' + err.message); });
+          var wf = await getFolderFromToken(prefs.workingFolderToken);
+          if (!wf) { showStatus('Working folder not accessible'); return; }
+          var jobFolder = await getJobFolder(wf, prefs, jobInfo);
+          if (!jobFolder) { showStatus('Job folder not found'); return; }
+          var folderPath = jobFolder.nativePath;
+          // Adobe docs: await shell.openPath(folderEntry.nativePath)
+          // Requires launchProcess permission in manifest.json
+          var shell = require('uxp').shell;
+          await shell.openPath(folderPath);
+        } catch (err) {
+          // Fallback: copy path to clipboard
+          try {
+            var p = err._folderPath || '';
+            if (!p) {
+              var pr = await getPrefs();
+              var wf2 = pr.workingFolderToken ? await getFolderFromToken(pr.workingFolderToken) : null;
+              var j = jobCache[btn.dataset.jobId] || {};
+              var ji = { job_number: btn.dataset.jobNumber, customer_company: customerName(j), customer_first_name: j.customer_first_name, customer_last_name: j.customer_last_name, customer_code: j.customer_code || '', description: j.description || '', job_type_name: j.job_type_name || '' };
+              if (wf2) { var f = await getJobFolder(wf2, pr, ji); if (f) p = f.nativePath; }
+            }
+            if (p) {
+              try { navigator.clipboard.writeText(p); } catch (ce) {}
+              showLongStatus('Path copied! Finder: Cmd+Shift+G → paste. Explorer: paste in address bar.\n' + p);
+            } else {
+              showError('Could not open folder: ' + err.message);
+            }
+          } catch (e2) { showError('Could not open folder'); }
+        }
       });
     });
     listEl.querySelectorAll('.close-job-btn').forEach(btn => {
