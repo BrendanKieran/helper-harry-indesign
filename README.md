@@ -44,19 +44,27 @@ The plugin stays loaded across sessions until you explicitly remove it from the 
 
 ### 2. Print PDF Preset(s)
 
-Two `.joboptions` presets ship in [dist/](./dist/) — pick the one matching the job's paper stock:
+The plugin installs two presets for you — **Helper Harry Print - Uncoated** (FOGRA52, most Factory jobs) and **Helper Harry Print - Coated** (FOGRA39, for coated/silk/gloss stocks).
 
-- **`helper-harry-print-uncoated-v1.0.joboptions`** — PSO Uncoated v3 (FOGRA52). Use for uncoated, recycled, and semi-recycled stocks. Most Factory jobs fall here.
-- **`helper-harry-print-coated-v1.0.joboptions`** — Coated FOGRA39 (ISO 12647-2:2004). Use for coated / silk / gloss stocks.
+Both presets share the same structural settings: 3 mm bleed, crop marks only, 300 DPI, all colours auto-converted to CMYK, fonts embedded. Only the output intent (ICC profile) differs.
 
-**Both presets share the same structural settings** — 3 mm bleed, crop marks, 300 DPI, all colours auto-converted to CMYK, fonts embedded. Only the output intent (ICC profile) differs.
+**Install (recommended — from the plugin):**
 
-**Install (per preset):**
+1. **Open an InDesign document first** — any document will do. The presets are attached to the running InDesign instance, so it needs to be fully loaded with at least one document open.
+2. In the Helper Harry panel header, click **Presets**.
+3. The panel will confirm: *"Presets installed: Helper Harry Print - Uncoated, Helper Harry Print - Coated"*.
+4. When exporting a PDF (File → Export → Adobe PDF), pick either preset from the dropdown.
 
-1. Download the `.joboptions` file
-2. In **InDesign**: File → Adobe PDF Presets → Define → Load → select the file → Open
-3. In **Acrobat / Distiller**: double-click the `.joboptions` file and it auto-installs
-4. When exporting a PDF, pick **Helper Harry Print - Uncoated** or **Helper Harry Print - Coated** from the preset dropdown
+If you get the message *"InDesign not ready — open a document first, then try again"*, make sure a document is open and InDesign is fully loaded, then click **Presets** again.
+
+**Fallback — manual `.joboptions` install:**
+
+Two `.joboptions` files also ship in [dist/](./dist/) for older InDesign versions or if the Presets button doesn't work:
+
+- `helper-harry-print-uncoated-v1.0.joboptions`
+- `helper-harry-print-coated-v1.0.joboptions`
+
+Install via: **InDesign → File → Adobe PDF Presets → Define → Load**. (Note: InDesign 2025/2026 can reject hand-crafted `.joboptions` files with "Cannot import presets from this file". Use the **Presets** button in the plugin instead.)
 
 ### 3. ICC Profiles (required for the PDF presets)
 
