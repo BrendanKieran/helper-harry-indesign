@@ -699,10 +699,11 @@ async function handleOpenDocument(jobId) {
 
 function setupPdfPresets() {
   try {
-    var app = indesign;
+    var ID = require('indesign');
+    var app = ID.app;
+    if (!app) { showError('InDesign not ready — open a document first, then try again.'); return; }
     var presets = app.pdfExportPresets;
     var created = [];
-    var ID = indesignModule;
 
     var configs = [
       { name: 'Helper Harry Print - Uncoated', profile: 'PSO Uncoated v3 (FOGRA52)', condition: 'FOGRA52' },
