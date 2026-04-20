@@ -166,6 +166,7 @@ async function renderMain(root) {
       <span class="header-logo">Helper Harry</span>
       <span class="header-user">${email.split('@')[0]}</span>
       <span style="margin-left: auto; display: flex; gap: 4px; align-items: center;">
+        <button id="setup-presets-btn" class="gear-btn" title="Install PDF export presets">Presets</button>
         <button id="settings-btn" class="gear-btn" title="Settings">Settings</button>
         <button id="logout-btn" class="btn btn-secondary btn-sm">Logout</button>
       </span>
@@ -217,6 +218,10 @@ async function renderMain(root) {
     } catch (err) {
       showError('Asset upload failed: ' + err.message);
     }
+  });
+
+  document.getElementById('setup-presets-btn').addEventListener('click', function() {
+    setupPdfPresets();
   });
 
   document.getElementById('settings-btn').addEventListener('click', function() {
@@ -687,6 +692,74 @@ async function handleOpenDocument(jobId) {
     currentJobId = jobId;
     loadJobs();
     showError(`Open failed: ${err.message}`);
+  }
+}
+
+// ── PDF Export Presets ──
+
+function setupPdfPresets() {
+  try {
+    var app = indesign;
+    var presets = app.pdfExportPresets;
+    var created = [];
+    var ID = indesignModule;
+
+    var configs = [
+      { name: 'Helper Harry Print - Uncoated', profile: 'PSO Uncoated v3 (FOGRA52)', condition: 'FOGRA52' },
+      { name: 'Helper Harry Print - Coated', profile: 'Coated FOGRA39 (ISO 12647-2:2004)', condition: 'FOGRA39' }
+    ];
+
+    for (var i = 0; i < configs.length; i++) {
+      var cfg = configs[i];
+      var preset;
+      try { preset = presets.itemByName(cfg.name); preset.name; } catch (e) { preset = null; }
+      if (!preset) { preset = presets.add({ name: cfg.name }); }
+
+      // Core settings
+      try { preset.acrobatCompatibility = ID.AcrobatCompatibility.ACROBAT_7; } catch (e) {}
+
+      // Marks — crop marks only
+      try { preset.cropMarks = true; } catch (e) {}
+      try { preset.bleedMarks = false; } catch (e) {}
+      try { preset.registrationMarks = false; } catch (e) {}
+      try { preset.colorBars = false; } catch (e) {}
+      try { preset.pageInformationMarks = false; } catch (e) {}
+      try { preset.includeSlugWithPDF = false; } catch (e) {}
+      try { preset.pageMarksOffset = '3mm'; } catch (e) {}
+
+      // Bleed — 3mm all sides
+      try { preset.useDocumentBleedWithPDF = false; } catch (e) {}
+      try { preset.bleedTop = '3mm'; } catch (e) {}
+      try { preset.bleedBottom = '3mm'; } catch (e) {}
+      try { preset.bleedInside = '3mm'; } catch (e) {}
+      try { preset.bleedOutside = '3mm'; } catch (e) {}
+
+      // Colour — convert to CMYK
+      try { preset.pdfColorSpace = ID.PDFColorSpace.REPURPOSE_CMYK; } catch (e) {}
+      try { preset.pdfDestinationProfile = cfg.profile; } catch (e) {}
+      try { preset.outputConditionName = cfg.condition; } catch (e) {}
+
+      // Image quality — 300 DPI, maximum
+      try { preset.colorBitmapSampling = ID.Sampling.BICUBIC_DOWNSAMPLE; } catch (e) {}
+      try { preset.colorBitmapSamplingDPI = 300; } catch (e) {}
+      try { preset.colorBitmapQuality = ID.CompressionQuality.MAXIMUM; } catch (e) {}
+      try { preset.colorBitmapCompression = ID.BitmapCompression.AUTO_COMPRESSION; } catch (e) {}
+      try { preset.grayscaleBitmapSampling = ID.Sampling.BICUBIC_DOWNSAMPLE; } catch (e) {}
+      try { preset.grayscaleBitmapSamplingDPI = 300; } catch (e) {}
+      try { preset.grayscaleBitmapQuality = ID.CompressionQuality.MAXIMUM; } catch (e) {}
+
+      // Fonts — embed all
+      try { preset.subsetFontsBelow = 0; } catch (e) {}
+
+      // View after export
+      try { preset.viewPDF = true; } catch (e) {}
+
+      created.push(cfg.name);
+    }
+
+    showStatus('Presets installed: ' + created.join(', '));
+  } catch (err) {
+    showError('Preset setup failed: ' + err.message);
   }
 }
 
