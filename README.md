@@ -29,7 +29,20 @@ UXP plugin for Adobe InDesign that connects to Helper Harry's print shop workflo
 
 ## Installation
 
-### 1. Plugin (via UXP Developer Tool)
+### 1. Plugin (recommended — via `.ccx` double-click install)
+
+1. Download `helper-harry-indesign-v1.0.0.ccx` from [dist/](./dist/) (or from the Helper Harry Designer Tools page).
+2. Close InDesign if it's running.
+3. **Double-click the `.ccx` file**. Creative Cloud's UXP Plugin Installer opens.
+4. Click **Install**. The plugin is added to InDesign's managed plugins folder.
+5. Open **InDesign** → **Window → Helper Harry** to open the panel.
+6. Sign in with your Helper Harry credentials on first launch.
+
+No Developer Tool required. The plugin auto-loads on every InDesign launch and auto-updates don't require a re-install (just drop a newer `.ccx` on the user and double-click again). Uninstall from **Creative Cloud → Manage Plug-ins → Helper Harry → Uninstall**.
+
+### 1b. Plugin (alternative — sideload via UXP Developer Tool)
+
+Use this path if you want to run a development build, or if the `.ccx` install is blocked by IT policy.
 
 1. Download `helper-harry-indesign-v1.0.0.zip` from [dist/](./dist/) and extract it.
 2. Install the free **UXP Developer Tool** from the Creative Cloud desktop app (search "UXP Developer Tool" in Apps and click Install).
@@ -38,9 +51,8 @@ UXP plugin for Adobe InDesign that connects to Helper Harry's print shop workflo
 5. Click **"Add Plugin"** → navigate to the extracted folder → select **`manifest.json`**.
 6. Click **"Load"** — the plugin sideloads into InDesign.
 7. In InDesign: **Window → Helper Harry** to open the panel.
-8. Sign in with your Helper Harry credentials on first launch (Enter key works on the password field).
 
-The plugin stays loaded across sessions until you explicitly remove it from the Developer Tool. This is the standard in-house distribution path for UXP plugins — no Adobe Developer certificate needed.
+Note: sideloaded plugins may need to be re-loaded via UDT after some InDesign or UDT updates. The `.ccx` install above is more reliable for production use.
 
 ### 2. Print PDF Preset(s)
 
@@ -260,3 +272,35 @@ helper-harry-indesign/
 
 **Everything else**
 - Contact support at [support@helperharry.com](mailto:support@helperharry.com).
+
+---
+
+## Release (for maintainers)
+
+Run this on the Mac/Windows dev machine that has Adobe UXP Developer Tool installed. UDT does the signing — there's no cross-platform CLI, so this step doesn't run on the HH VPS.
+
+```bash
+# 1. Bump version in manifest.json (+ package.json if it exists)
+
+# 2. Build signed .ccx
+./build-ccx.sh
+
+# → Writes dist/helper-harry-indesign-v<VERSION>.ccx
+#   (if UDT CLI isn't found, it prints manual UDT → Package instructions)
+
+# 3. Upload to the HH server
+scp dist/helper-harry-indesign-v<VERSION>.ccx \
+    root@app.helperharry.com:/root/print-automation-system/server/static/downloads/
+
+# 4. Update DesignerTools.jsx download link if version changed
+#    (HH repo: client/src/components/workflow/DesignerTools.jsx)
+
+# 5. Commit dist/ + manifest.json, push the plugin repo
+git add dist manifest.json
+git commit -m "release: vX.Y.Z"
+git push
+```
+
+**Unsigned build** (for CI or quick test): `./build-ccx.sh --unsigned` — produces a `.ccx` without UDT. Installs only on machines with CC Developer Mode enabled, so only use for internal testing.
+
+**Adobe Marketplace** — not used yet. If you ever submit there, Adobe signs on publish and the `.ccx` file from `build-ccx.sh` is the upload artefact. Main review hurdles to expect: the `localFileSystem: fullAccess` permission (document why in the listing) and the `launchProcess` permission (used for "open output folder").
