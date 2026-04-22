@@ -193,12 +193,15 @@ helper-harry-indesign/
 │       ├── storage.js     — file-based prefs + persistent folder tokens
 │       └── jszip.min.js   — JSZip 3.10.1 (pure JS zip library, 97kb)
 ├── dist/
-│   ├── helper-harry-indesign-v1.0.0.zip             — plugin bundle
+│   ├── helper-harry-indesign-v1.0.0.ccx             — signed plugin bundle (double-click install)
+│   ├── helper-harry-indesign-v1.0.0.zip             — plugin source (UDT sideload alternative)
 │   ├── helper-harry-print-uncoated-v1.0.joboptions  — PDF preset (FOGRA52)
 │   ├── helper-harry-print-coated-v1.0.joboptions    — PDF preset (FOGRA39)
 │   └── helper-harry-print-floor-agent-v1.0.0.zip    — Print Floor Agent
 └── icons/
-    └── plugin-icon.png    — panel icon
+    ├── icon-24.png        — install dialog icon (24×24)
+    ├── icon-48.png        — install dialog icon (48×48)
+    └── icon-96.png        — install dialog icon (96×96)
 ```
 
 ---
