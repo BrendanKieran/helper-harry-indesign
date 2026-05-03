@@ -87,21 +87,30 @@ async function getJobFolder(workingFolder, prefs, jobInfo) {
   }
 }
 
-// Build a Factory-style filename: JOB-1234 Customer Desc - Type STATUS.pdf
+// Build a Factory-style filename:
+//   JOB-1234 OK 04-05-2026 0830 - Customer Desc - Type.pdf
+//
+// STATUS + date + time go near the front so they stay visible even when
+// long customer/description text gets truncated by Finder/Explorer columns.
+// Date format is DD-MM-YYYY (Lisa's preference for the Irish region;
+// other regions can fork this if needed). Was YYYY-MM-DD at the very end
+// — on long names the time and often the day/month were hidden.
 function buildFilename(jobInfo, status) {
   var safe = function(s) { return (s || '').replace(/[/\\:*?"<>|]/g, '').trim(); };
-  var parts = [
+  var now = new Date();
+  var dateStr = String(now.getDate()).padStart(2, '0') + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + now.getFullYear();
+  var timeStr = String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0');
+  var head = [
     safe(jobInfo.job_number || 'JOB'),
+    status + ' ' + dateStr + ' ' + timeStr
+  ];
+  var tail = [
     safe(jobInfo.customer_company || [jobInfo.customer_first_name, jobInfo.customer_last_name].filter(Boolean).join(' ') || ''),
     safe((jobInfo.description || '').substring(0, 50))
   ];
-  if (jobInfo.job_type_name) parts.push('- ' + safe(jobInfo.job_type_name));
-  // Append date + time so repeat exports don't produce identical filenames
-  var now = new Date();
-  var dateStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
-  var timeStr = String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0');
-  parts.push(status + ' ' + dateStr + ' ' + timeStr);
-  return parts.filter(Boolean).join(' ').substring(0, 180).trim() + '.pdf';
+  if (jobInfo.job_type_name) tail.push(safe(jobInfo.job_type_name));
+  var tailStr = tail.filter(Boolean).join(' - ');
+  return [head.join(' '), tailStr].filter(Boolean).join(' - ').substring(0, 180).trim() + '.pdf';
 }
 
 // ── Render the UI ──
