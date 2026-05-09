@@ -24,15 +24,16 @@ function createDocument(jobSpecs, prefs = {}) {
     }
   });
 
-  // Set margins using the .properties pattern from Adobe docs
+  // Set margins. doc.pages is a Pages Collection — must use .item(i),
+  // not [i] (which returns undefined silently in UXP). Set each side
+  // individually instead of via .properties = {...} for UXP reliability.
   try {
     for (let i = 0; i < doc.pages.length; i++) {
-      doc.pages[i].marginPreferences.properties = {
-        top: `${marginMM}mm`,
-        bottom: `${marginMM}mm`,
-        left: `${marginMM}mm`,
-        right: `${marginMM}mm`
-      };
+      const mp = doc.pages.item(i).marginPreferences;
+      mp.top = `${marginMM}mm`;
+      mp.bottom = `${marginMM}mm`;
+      mp.left = `${marginMM}mm`;
+      mp.right = `${marginMM}mm`;
     }
   } catch (e) {
     // Margins are nice-to-have
@@ -41,7 +42,7 @@ function createDocument(jobSpecs, prefs = {}) {
   // Add job info text frame on page 1 (non-printing)
   if (prefs.showJobInfo !== false && jobNumber) {
     try {
-      const page1 = doc.pages[0];
+      const page1 = doc.pages.item(0);
       const textFrame = page1.textFrames.add();
       textFrame.geometricBounds = [
         `${marginMM}mm`, `${marginMM}mm`,

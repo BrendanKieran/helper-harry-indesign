@@ -1102,6 +1102,18 @@ function showAiProofPreview(jobId, texts, preview) {
       showStatus('Running AI proof... (~5-15s)');
       var result = await workflow.aiProofRun({ jobId: jobId, texts: texts });
       var findings = (result && result.findings) || [];
+      // Anthropic's response schema doesn't include `page` — look it up
+      // from the original texts array via frame_id so the findings list
+      // renders the right page number instead of "?".
+      var pageByFrame = {};
+      for (var ti = 0; ti < texts.length; ti++) {
+        if (texts[ti] && texts[ti].frame_id) pageByFrame[texts[ti].frame_id] = texts[ti].page;
+      }
+      for (var fi = 0; fi < findings.length; fi++) {
+        if (!findings[fi].page && findings[fi].frame_id && pageByFrame[findings[fi].frame_id]) {
+          findings[fi].page = pageByFrame[findings[fi].frame_id];
+        }
+      }
       showStatus(findings.length === 0
         ? 'No issues found ✓'
         : 'Found ' + findings.length + ' issue(s) — review below');
