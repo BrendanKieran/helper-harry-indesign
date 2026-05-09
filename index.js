@@ -404,6 +404,8 @@ function renderJobList(searchQuery) {
               <button class="btn btn-secondary btn-sm save-btn" data-job-id="${job.id}">Save</button>
               <button class="btn btn-primary btn-sm sync-cloud-btn" data-job-id="${job.id}" data-job-number="${job.job_number}" style="background:var(--accent);">Sync to Cloud</button>
               <button class="btn btn-amber btn-sm export-proof-btn" data-job-id="${job.id}" data-job-number="${job.job_number}">Export Proof</button>
+              <button class="btn btn-sm send-mailto-btn" data-job-id="${job.id}" data-job-number="${job.job_number}" title="Open the latest proof email in your own mail client — replies go to your inbox" style="background:#7C3AED;color:white;">&#9993; From My Email</button>
+              <button class="btn btn-sm proof-ai-btn" data-job-id="${job.id}" data-job-number="${job.job_number}" title="AI-check the active document for spelling, grammar, doubled words" style="background:#6366F1;color:white;">&#129668; Proof AI</button>
               <button class="btn btn-green btn-sm export-ok-btn" data-job-id="${job.id}" data-job-number="${job.job_number}" data-coated="false">OK Uncoated</button>
               <button class="btn btn-sm export-ok-btn" data-job-id="${job.id}" data-job-number="${job.job_number}" data-coated="true" style="background:#0EA5E9;color:white;">OK Coated</button>
               <button class="btn btn-secondary btn-sm upload-btn" data-job-id="${job.id}" data-job-number="${job.job_number}">Upload File</button>
@@ -488,6 +490,12 @@ function renderJobList(searchQuery) {
     });
     listEl.querySelectorAll('.export-proof-btn').forEach(btn => {
       btn.addEventListener('click', (e) => { e.stopPropagation(); handleExportProof(btn.dataset.jobId, btn.dataset.jobNumber); });
+    });
+    listEl.querySelectorAll('.send-mailto-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => { e.stopPropagation(); handleSendFromMyEmail(btn.dataset.jobId, btn.dataset.jobNumber); });
+    });
+    listEl.querySelectorAll('.proof-ai-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => { e.stopPropagation(); handleProofWithAi(btn.dataset.jobId, btn.dataset.jobNumber); });
     });
     listEl.querySelectorAll('.export-ok-btn').forEach(btn => {
       btn.addEventListener('click', (e) => { e.stopPropagation(); handleExportOkPdf(btn.dataset.jobId, btn.dataset.jobNumber, btn.dataset.coated === 'true'); });
@@ -932,6 +940,259 @@ async function handleExportOkPdf(jobId, jobNumber, coated) {
   } catch (err) {
     showError('Export failed: ' + err.message);
   }
+}
+
+// ── Send Proof "From My Email" ──
+// Opens the OS / browser default mail client with the customer's address,
+// pre-filled subject and the rendered plain-text body. Customer replies
+// land in the designer's own inbox, not the shop's shared mailbox.
+// Mirrors the JobDetail "From My Email" button (v2.1.41.6).
+
+async function handleSendFromMyEmail(jobId, jobNumber) {
+  try {
+    showStatus('Finding latest proof PDF...');
+    var files = await workflow.listJobFiles(jobId, 'proof');
+    if (!files || files.length === 0) {
+      showError('No proof file uploaded yet — Export Proof first.');
+      return;
+    }
+    // Newest first by created_at; fall back to highest version if dates tie.
+    files.sort(function(a, b) {
+      var ad = new Date(a.created_at || 0).getTime();
+      var bd = new Date(b.created_at || 0).getTime();
+      if (ad !== bd) return bd - ad;
+      return (b.version || 0) - (a.version || 0);
+    });
+    var latest = files[0];
+
+    showStatus('Drafting proof email...');
+    var draft = await workflow.getProofDraftEmail(jobId, latest.id);
+    if (!draft || !draft.to) {
+      showError('Could not draft email — customer email missing?');
+      return;
+    }
+    var mailto = 'mailto:' + encodeURIComponent(draft.to)
+      + '?subject=' + encodeURIComponent(draft.subject || '')
+      + '&body=' + encodeURIComponent(draft.plainTextBody || '');
+
+    // Some mail clients cap mailto URLs around 2000 chars. The proof body
+    // is well under that, but warn so we'd see truncation in the wild
+    // before users do.
+    if (mailto.length > 2000) {
+      console.warn('[ProofMailto] mailto URL is ' + mailto.length + ' chars — some clients may truncate.');
+    }
+
+    try {
+      var shell = require('uxp').shell;
+      await shell.openExternal(mailto);
+      showStatus('Email opened in your default mail client');
+    } catch (openErr) {
+      // Fallback: copy mailto body to clipboard and tell the user.
+      try { navigator.clipboard.writeText(draft.plainTextBody || ''); } catch (ce) {}
+      showError('Couldn\'t open mail client (' + (openErr.message || 'no handler') + '). Body copied to clipboard.');
+    }
+  } catch (err) {
+    showError('From My Email failed: ' + err.message);
+  }
+}
+
+// ── Proof with AI ──
+// Walks every text frame in the active document, sends to Haiku 4.5 via
+// /workflow/ai-proof, and renders a findings panel. Click a finding to
+// jump to the offending frame in InDesign (zoomToObject).
+// Server: v2.1.49.0 (workflowAiProofService).
+
+async function collectDocumentTexts() {
+  // UXP InDesign: iterate pages → page.allPageItems → keep TextFrames with
+  // non-empty contents. frame_id is the InDesign frame ID (used later to
+  // jump back); paragraph_style is best-effort.
+  var doc = indesign.activeDocument;
+  if (!doc) return [];
+  var texts = [];
+  var pages = doc.pages;
+  for (var p = 0; p < pages.length; p++) {
+    var page = pages.item(p);
+    var pageNumber = (page.name || String(p + 1));
+    var items = page.allPageItems;
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      try {
+        // TextFrame check: has .contents and .parentStory
+        if (!it || !it.contents || typeof it.contents !== 'string') continue;
+        var content = it.contents.trim();
+        if (!content) continue;
+        var paraStyle = '';
+        try {
+          var paragraphs = it.paragraphs;
+          if (paragraphs && paragraphs.length > 0) {
+            var ps = paragraphs.item(0).appliedParagraphStyle;
+            paraStyle = ps && ps.name ? ps.name : '';
+          }
+        } catch (e) {}
+        texts.push({
+          frame_id: String(it.id),
+          page: pageNumber,
+          paragraph_style: paraStyle,
+          text: content
+        });
+      } catch (e) {}
+    }
+  }
+  return texts;
+}
+
+async function handleProofWithAi(jobId, jobNumber) {
+  try {
+    var doc = indesign.activeDocument;
+    if (!doc) { showError('No document open in InDesign'); return; }
+
+    showStatus('Reading document text...');
+    var texts = await collectDocumentTexts();
+    if (texts.length === 0) {
+      showError('No text frames found in the active document.');
+      return;
+    }
+
+    // Pre-flight cost preview. If this fails we still let the user run
+    // (cost-estimate is a hint, not a gate).
+    var preview = null;
+    try {
+      preview = await workflow.aiProofCostEstimate({ jobId: jobId, texts: texts });
+    } catch (e) {}
+
+    showAiProofPreview(jobId, texts, preview);
+  } catch (err) {
+    showError('Proof AI failed: ' + err.message);
+  }
+}
+
+function showAiProofPreview(jobId, texts, preview) {
+  var overlay = document.getElementById('settings-overlay');
+  if (!overlay) return;
+
+  var charCount = 0;
+  for (var t = 0; t < texts.length; t++) charCount += (texts[t].text || '').length;
+  var pricePounds = preview && typeof preview.costPence === 'number'
+    ? '£' + (preview.costPence / 100).toFixed(2)
+    : '~£0.01';
+
+  var html = '<div class="settings-panel"><h2>&#129668; Run Proof AI?</h2>';
+  html += '<div style="font-size:12px;line-height:1.6;margin-bottom:12px;">';
+  html += '<div><strong>' + texts.length + '</strong> text frame(s) on the active document</div>';
+  html += '<div><strong>~' + (Math.round(charCount / 100) / 10) + 'k</strong> characters of text</div>';
+  html += '<div>Estimated cost: <strong>' + pricePounds + '</strong></div>';
+  html += '</div>';
+  html += '<div style="font-size:10px;color:var(--text-dim);margin-bottom:12px;">';
+  html += 'AI checks for spelling, grammar, doubled words, and obvious typos. It does not check brand voice or layout. Findings appear after the run — click any finding to jump to that frame.';
+  html += '</div>';
+  html += '<div class="settings-actions">';
+  html += '<button id="ai-proof-cancel" class="btn btn-secondary btn-sm">Cancel</button>';
+  html += '<button id="ai-proof-run" class="btn btn-primary btn-sm">Run AI Proof</button>';
+  html += '</div></div>';
+  overlay.innerHTML = html;
+  overlay.style.display = 'flex';
+
+  document.getElementById('ai-proof-cancel').addEventListener('click', function() {
+    overlay.style.display = 'none';
+    showStatus('Cancelled');
+  });
+  document.getElementById('ai-proof-run').addEventListener('click', async function() {
+    overlay.style.display = 'none';
+    try {
+      showStatus('Running AI proof... (~5-15s)');
+      var result = await workflow.aiProofRun({ jobId: jobId, texts: texts });
+      var findings = (result && result.findings) || [];
+      showStatus(findings.length === 0
+        ? 'No issues found ✓'
+        : 'Found ' + findings.length + ' issue(s) — review below');
+      showFindingsOverlay(findings, result);
+    } catch (err) {
+      showError('Proof AI failed: ' + err.message);
+    }
+  });
+}
+
+function showFindingsOverlay(findings, runResult) {
+  // Reuse the settings-overlay element as a generic modal container.
+  var overlay = document.getElementById('settings-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'settings-overlay';
+    overlay.className = 'settings-overlay';
+    document.body.appendChild(overlay);
+  }
+
+  var costStr = runResult && typeof runResult.costPence === 'number'
+    ? '£' + (runResult.costPence / 100).toFixed(3)
+    : '';
+  var html = '<div class="settings-panel"><h2>&#129668; Proof AI Findings</h2>';
+  html += '<div style="font-size:11px;color:var(--text-dim);margin-bottom:10px;">';
+  html += findings.length + ' finding(s)';
+  if (costStr) html += ' · ' + costStr + ' · ' + (runResult.durationMs ? Math.round(runResult.durationMs / 100) / 10 + 's' : '');
+  html += '</div>';
+
+  if (findings.length === 0) {
+    html += '<div class="msg msg-success">No issues found. The text reads clean.</div>';
+  } else {
+    html += '<div style="max-height:60vh;overflow-y:auto;">';
+    for (var i = 0; i < findings.length; i++) {
+      var f = findings[i];
+      var conf = f.confidence === 'high' ? 'var(--green)' : (f.confidence === 'low' ? 'var(--text-dim)' : 'var(--amber)');
+      var typeLabel = (f.issue_type || 'other').toUpperCase();
+      html += '<div class="finding" data-frame-id="' + (f.frame_id || '') + '" style="padding:8px;border:1px solid var(--border);border-radius:4px;margin-bottom:6px;cursor:pointer;background:var(--bg-card);">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">';
+      html += '<span style="font-size:9px;font-weight:700;color:' + conf + ';">' + typeLabel + ' · ' + (f.confidence || 'medium').toUpperCase() + '</span>';
+      html += '<span style="font-size:9px;color:var(--text-dim);">page ' + (f.page || '?') + '</span>';
+      html += '</div>';
+      html += '<div style="font-size:11px;margin-bottom:3px;"><span style="color:var(--red);text-decoration:line-through;">' + escapeHtml(f.original || '') + '</span>';
+      if (f.suggestion) html += ' &rarr; <span style="color:var(--green);">' + escapeHtml(f.suggestion) + '</span>';
+      html += '</div>';
+      if (f.explanation) html += '<div style="font-size:10px;color:var(--text-dim);">' + escapeHtml(f.explanation) + '</div>';
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+
+  html += '<div class="settings-actions"><button id="findings-close" class="btn btn-primary btn-sm">Close</button></div></div>';
+  overlay.innerHTML = html;
+  overlay.style.display = 'flex';
+
+  document.getElementById('findings-close').addEventListener('click', function() {
+    overlay.style.display = 'none';
+  });
+
+  // Click a finding to jump to its frame in the InDesign canvas.
+  overlay.querySelectorAll('.finding').forEach(function(el) {
+    el.addEventListener('click', function() {
+      var frameId = el.dataset.frameId;
+      if (!frameId) return;
+      try {
+        var doc = indesign.activeDocument;
+        if (!doc) return;
+        // pageItems.itemByID on the document: walks all pages.
+        var item = doc.pageItems.itemByID(parseInt(frameId, 10));
+        if (item && item.isValid) {
+          try {
+            var win = doc.layoutWindows.item(0);
+            if (win && win.isValid) {
+              win.activeSpread = item.parentPage ? item.parentPage.parent : win.activeSpread;
+              win.zoomToObject = item;
+            }
+          } catch (zErr) {}
+          try { doc.selection = [item]; } catch (sErr) {}
+          showStatus('Jumped to frame');
+        }
+      } catch (err) {
+        showStatus('Could not locate frame');
+      }
+    });
+  });
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, function(ch) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+  });
 }
 
 // ── Sync to Cloud ──

@@ -10,6 +10,8 @@ UXP plugin for Adobe InDesign that connects to Helper Harry's print shop workflo
 - **Save** — save the active document from the panel
 - **Sync to Cloud** — zips the entire job folder (InDesign file + all linked assets, images, PDFs, fonts) and uploads to HH's cloud archive. Enables remote work — restore automatically when the NAS is unreachable from home.
 - **Export Proof PDF** — 150 DPI, no bleed, compressed → saves locally + auto-uploads to HH as versioned proof
+- **✉️ From My Email** — opens the latest proof email in your default mail client, pre-filled with subject + body + customer address. Replies land in your inbox, not the shop's shared mailbox.
+- **🪄 Proof AI** — Haiku 4.5 reads every text frame and flags spelling, grammar, doubled words, broken sentences, mismatched numbers/dates. Click a finding to jump straight to the offending frame. Per-org allowlist for brand names / customer names lives in Shop Setup → Proofing.
 - **Export OK PDF** — 300 DPI, press quality, bleed + crop marks → saves locally + auto-uploads to HH as print-ready
 - **Upload File** — pick any file from disk and upload it to the job on HH
 - **Customer Assets** — browse, place into your layout (zero-stroke frames), and upload new assets (logos, images) to the customer's library

@@ -155,6 +155,48 @@ class WorkflowAPI {
   async getCustomerJobs(customerId) {
     return this._fetch(`/workflow/customers/${customerId}/jobs`);
   }
+
+  // ── Proof — From My Email ──
+  // List job files filtered by category (e.g. 'proof'). Used to pick the
+  // latest proof PDF before drafting an email.
+  async listJobFiles(jobId, category) {
+    var path = '/workflow/jobs/' + jobId + '/files';
+    if (category) path += '?category=' + encodeURIComponent(category);
+    return this._fetch(path);
+  }
+
+  // Build a proof email but DON'T send it. Returns
+  // { to, subject, plainTextBody, proofUrl, token } — caller composes
+  // a mailto: URL so the customer's reply lands in the designer's inbox.
+  async getProofDraftEmail(jobId, fileId) {
+    return this._fetch('/workflow/jobs/' + jobId + '/files/' + fileId + '/draft-email', {
+      method: 'POST',
+      body: JSON.stringify({})
+    });
+  }
+
+  // ── AI Proof ──
+  // Pre-flight: count tokens, return { inputTokens, expectedOutputTokens, costPence }
+  // for the £0.XX preview before clicking Run.
+  async aiProofCostEstimate(payload) {
+    return this._fetch('/workflow/ai-proof/cost-estimate', {
+      method: 'POST',
+      body: JSON.stringify(payload || {})
+    });
+  }
+
+  // Run AI proof. Payload: { jobId?, texts: [{frame_id, page, paragraph_style, text}] }
+  // Returns { findings: [...], tokensIn, tokensOut, costPence, durationMs }
+  async aiProofRun(payload) {
+    return this._fetch('/workflow/ai-proof/run', {
+      method: 'POST',
+      body: JSON.stringify(payload || {})
+    });
+  }
+
+  async aiProofAllowlist() {
+    return this._fetch('/workflow/ai-proof/allowlist');
+  }
 }
 
 module.exports = new WorkflowAPI();
