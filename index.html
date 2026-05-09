@@ -62,7 +62,7 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     .divider { height: 1px; background: var(--border); margin: 8px 0; }
     .empty { text-align: center; padding: 20px; color: var(--text-dim); font-size: 11px; }
-    .settings-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 100; display: flex; align-items: flex-start; justify-content: center; padding-top: 20px; }
+    .settings-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 100; display: flex; align-items: flex-start; justify-content: center; padding-top: 20px; overflow-y: auto; }
     .settings-panel { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; width: 92%; max-height: 90%; overflow-y: auto; }
     .settings-panel h2 { font-size: 14px; font-weight: 700; margin-bottom: 10px; color: var(--accent-light); }
     .settings-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
